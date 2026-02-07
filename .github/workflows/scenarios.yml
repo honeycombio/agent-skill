@@ -29,18 +29,6 @@ jobs:
       - name: Install Claude CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Install mcp-remote
-        run: npm install -g mcp-remote
-
-      - name: Test mcp-remote directly
-        env:
-          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
-        run: |
-          echo "=== Testing mcp-remote can reach Honeycomb ==="
-          echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}' | \
-            timeout 15 npx mcp-remote https://mcp.honeycomb.io/mcp \
-              --header "Authorization: Bearer ${HONEYCOMB_API_KEY}" 2>&1 | head -5 || echo "mcp-remote exited with $?"
-
       - name: Configure Honeycomb MCP
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
@@ -51,21 +39,22 @@ jobs:
           config = {
               'mcpServers': {
                   'honeycomb': {
-                      'command': 'npx',
-                      'args': ['-y', 'mcp-remote', 'https://mcp.honeycomb.io/mcp',
-                               '--header', f'Authorization: Bearer {key}']
+                      'command': 'node',
+                      'args': ['tests/scenarios/mcp-http-proxy.mjs'],
+                      'env': {
+                          'HONEYCOMB_API_KEY': key
+                      }
                   }
               }
           }
           with open('.mcp.json', 'w') as f:
               json.dump(config, f, indent=2)
           "
-          echo "Generated .mcp.json (args redacted):"
+          echo "Generated .mcp.json:"
           python3 -c "
           import json
           c = json.load(open('.mcp.json'))
-          args = c['mcpServers']['honeycomb']['args']
-          args[-1] = 'Authorization: Bearer ***'
+          c['mcpServers']['honeycomb']['env']['HONEYCOMB_API_KEY'] = '***'
           print(json.dumps(c, indent=2))
           "
 
@@ -75,7 +64,7 @@ jobs:
         run: |
           echo "=== Verifying Claude can reach MCP server ==="
           claude -p "Call get_workspace_context and tell me the team name." \
-            --output-format stream-json --verbose --debug \
+            --output-format stream-json --verbose \
             --mcp-config .mcp.json \
             --max-turns 2 \
             --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
@@ -83,7 +72,7 @@ jobs:
           echo "=== Checking MCP status ==="
           if grep -q '"status":"failed"' mcp-verify.ndjson; then
             echo "FATAL: MCP server failed to connect"
-            grep -o '"mcp_servers":\[[^]]*\]' mcp-verify.ndjson
+            grep -o '"mcp_servers":\[[^]]*\]' mcp-verify.ndjson || true
             exit 1
           fi
           if grep -q '"status":"needs-auth"' mcp-verify.ndjson; then

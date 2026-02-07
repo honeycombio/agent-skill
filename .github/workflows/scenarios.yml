@@ -30,8 +30,10 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Configure Honeycomb MCP for CI
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
-          cat > .mcp.json << 'MCPEOF'
+          cat > .mcp.json << MCPEOF
           {
             "mcpServers": {
               "honeycomb": {
@@ -44,8 +46,8 @@ jobs:
             }
           }
           MCPEOF
-          echo "Generated .mcp.json:"
-          cat .mcp.json
+          echo "Generated .mcp.json (key redacted):"
+          sed 's/Bearer .*/Bearer ***"/' .mcp.json
 
       - name: Verify MCP connectivity
         env:

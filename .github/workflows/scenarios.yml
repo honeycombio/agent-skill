@@ -53,19 +53,35 @@ jobs:
           echo "Generated .mcp.json (key redacted):"
           python3 -c "import json; c=json.load(open('.mcp.json')); c['mcpServers']['honeycomb']['env']['HONEYCOMB_API_KEY']='***'; print(json.dumps(c, indent=2))"
 
+      - name: Pre-install mcp-remote
+        run: npm install -g mcp-remote
+
       - name: Verify MCP connectivity
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "=== Verifying Claude can reach MCP server ==="
           claude -p "Call get_workspace_context and tell me the team name." \
-            --output-format stream-json --verbose \
+            --output-format stream-json --verbose --debug \
             --mcp-config .mcp.json \
             --max-turns 2 \
             --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
           echo ""
-          echo "=== Checking for tool_use in output ==="
-          grep -c "tool_use" mcp-verify.ndjson || echo "WARNING: No tool_use blocks found"
+          echo "=== Checking MCP status ==="
+          if grep -q '"status":"failed"' mcp-verify.ndjson; then
+            echo "FATAL: MCP server failed to connect"
+            grep -o '"mcp_servers":\[[^]]*\]' mcp-verify.ndjson
+            exit 1
+          fi
+          if grep -q '"status":"needs-auth"' mcp-verify.ndjson; then
+            echo "FATAL: MCP server needs auth — API key not accepted"
+            exit 1
+          fi
+          if ! grep -q 'tool_use' mcp-verify.ndjson; then
+            echo "FATAL: No tool_use blocks — MCP tools not available"
+            exit 1
+          fi
+          echo "MCP connectivity verified"
 
       - name: Install test dependencies
         run: pip install -r tests/requirements.txt

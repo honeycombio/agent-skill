@@ -29,41 +29,80 @@ jobs:
       - name: Install Claude CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Validate Honeycomb API key
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          echo "=== Testing API key against MCP server ==="
+          HTTP_CODE=$(curl -s -o /tmp/mcp-auth-test.txt -w '%{http_code}' \
+            -X POST https://mcp.honeycomb.io/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -H "Authorization: Bearer ${HONEYCOMB_API_KEY}" \
+            -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci-test","version":"1.0"}},"id":1}')
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "401" ]; then
+            echo "FATAL: Honeycomb API key is invalid (401 Unauthorized)"
+            echo "The HONEYCOMB_API_KEY secret must be a management v2 key in format key_id:key_secret"
+            exit 1
+          fi
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "WARNING: Unexpected HTTP status $HTTP_CODE"
+            cat /tmp/mcp-auth-test.txt | head -5
+          fi
+          echo "API key validated (HTTP $HTTP_CODE)"
+
       - name: Configure Honeycomb MCP
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
+          PROXY_PATH="$(pwd)/tests/scenarios/mcp-http-proxy.mjs"
+          CONFIG_PATH="$(pwd)/.mcp.json"
+
           python3 -c "
           import json, os
           key = os.environ['HONEYCOMB_API_KEY']
-          cwd = os.getcwd()
+          proxy = os.environ['PROXY_PATH']
           config = {
               'mcpServers': {
                   'honeycomb': {
                       'command': 'node',
-                      'args': [f'{cwd}/tests/scenarios/mcp-http-proxy.mjs', key]
+                      'args': [proxy, key]
                   }
               }
           }
-          with open('.mcp.json', 'w') as f:
+          with open(os.environ['CONFIG_PATH'], 'w') as f:
               json.dump(config, f, indent=2)
           "
+
           echo "Generated .mcp.json (key redacted):"
           python3 -c "
-          import json
-          c = json.load(open('.mcp.json'))
+          import json, os
+          c = json.load(open(os.environ['CONFIG_PATH']))
           c['mcpServers']['honeycomb']['args'][1] = '***'
           print(json.dumps(c, indent=2))
           "
+
+      - name: Test proxy directly
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          echo "=== Testing proxy script independently ==="
+          INIT='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+          echo "$INIT" | timeout 15 node tests/scenarios/mcp-http-proxy.mjs "${HONEYCOMB_API_KEY}" 2>&1 | head -20
+          echo ""
+          echo "=== Proxy test exit code: $? ==="
 
       - name: Verify MCP connectivity
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          CONFIG_PATH="$(pwd)/.mcp.json"
+          echo "=== Using config: $CONFIG_PATH ==="
           echo "=== Verifying Claude can reach MCP server ==="
           claude -p "Call get_workspace_context and tell me the team name." \
             --output-format stream-json --verbose \
-            --mcp-config .mcp.json \
+            --mcp-config "$CONFIG_PATH" \
             --max-turns 2 \
             --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
           echo ""

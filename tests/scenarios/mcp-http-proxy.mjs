@@ -9,7 +9,7 @@
 const API_KEY = process.argv[2] || process.env.HONEYCOMB_API_KEY;
 const MCP_URL = process.argv[3] || process.env.MCP_SERVER_URL || 'https://mcp.honeycomb.io/mcp';
 
-process.stderr.write(`[mcp-http-proxy] starting, url=${MCP_URL}, key=${API_KEY ? 'set' : 'MISSING'}\n`);
+process.stderr.write(`[mcp-http-proxy] pid=${process.pid} url=${MCP_URL} key=${API_KEY ? API_KEY.slice(0, 8) + '...' : 'MISSING'}\n`);
 
 if (!API_KEY) {
   process.stderr.write('[mcp-http-proxy] Error: pass API key as argv[2] or HONEYCOMB_API_KEY env\n');

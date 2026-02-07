@@ -1,0 +1,116 @@
+scenarios:
+  - id: trigger-slow-endpoints
+    name: "Find slow endpoints triggers query-patterns"
+    prompt: "Find the slowest endpoints in my production environment"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns]
+      required_patterns:
+        - '"op":\s*"P(99|95|90)"'
+      anti_patterns:
+        - '"op":\s*"AVG".*duration'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 8
+      timeout_ms: 120000
+
+  - id: trigger-error-investigation
+    name: "Error investigation triggers production-investigation"
+    prompt: "Why are we seeing so many errors in production? Can you investigate?"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns, run_bubbleup]
+      required_patterns:
+        - '"column":\s*"error"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: trigger-slo-check
+    name: "SLO status check triggers slos-and-triggers"
+    prompt: "Check the status of our SLOs"
+    expected:
+      required_tools: [get_workspace_context, get_slos]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, get_slos]
+    config:
+      max_turns: 6
+      timeout_ms: 120000
+
+  - id: trigger-trace-exploration
+    name: "Trace analysis triggers production-investigation"
+    prompt: "Can you look at a slow trace and tell me where the time is being spent?"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [get_trace]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: trigger-service-map
+    name: "Service dependencies triggers investigation"
+    prompt: "Show me the service dependency map for production"
+    expected:
+      required_tools: [get_workspace_context, get_service_map]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, get_service_map]
+    config:
+      max_turns: 6
+      timeout_ms: 120000
+
+  - id: trigger-column-discovery
+    name: "Column discovery triggers query-patterns"
+    prompt: "What columns are available in my production dataset?"
+    expected:
+      required_tools: [get_workspace_context]
+      recommended_tools: [find_columns, get_dataset_columns]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering: []
+    config:
+      max_turns: 6
+      timeout_ms: 120000
+
+  - id: trigger-board-creation
+    name: "Board creation triggers query-patterns"
+    prompt: "Create a board showing error rates and latency for production"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [create_board]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: trigger-negative-unrelated
+    name: "Unrelated prompt should not use Honeycomb tools"
+    prompt: "Write a Python function that sorts a list of integers using merge sort"
+    expected:
+      required_tools: []
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns:
+        - 'get_workspace_context'
+        - 'run_query'
+        - 'find_columns'
+      tool_ordering: []
+    config:
+      max_turns: 4
+      timeout_ms: 60000

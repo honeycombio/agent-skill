@@ -1,0 +1,43 @@
+scenarios:
+  - id: workflow-full-investigation
+    name: "Full investigation workflow: prime, discover, query, analyze"
+    prompt: "We're seeing a latency spike in production. Investigate what's causing it and find the root cause."
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns, run_bubbleup, get_trace]
+      required_patterns:
+        - '"op":\s*"(HEATMAP|P99|P95|P90)"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 15
+      timeout_ms: 180000
+
+  - id: workflow-slo-investigation
+    name: "SLO-driven investigation"
+    prompt: "Our checkout SLO is burning budget fast. Figure out what's going on."
+    expected:
+      required_tools: [get_workspace_context, get_slos]
+      recommended_tools: [run_query, run_bubbleup]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, get_slos]
+    config:
+      max_turns: 12
+      timeout_ms: 180000
+
+  - id: workflow-service-dependencies
+    name: "Service dependency mapping"
+    prompt: "Map out the service dependencies in production and identify any unhealthy connections"
+    expected:
+      required_tools: [get_workspace_context, get_service_map]
+      recommended_tools: [run_query]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, get_service_map]
+    config:
+      max_turns: 10
+      timeout_ms: 120000

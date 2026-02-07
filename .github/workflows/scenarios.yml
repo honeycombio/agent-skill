@@ -30,19 +30,37 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Configure Honeycomb MCP for CI
-        env:
-          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
-          cat > .mcp.json << EOF
+          cat > .mcp.json << 'MCPEOF'
           {
             "mcpServers": {
               "honeycomb": {
-                "command": "npx",
-                "args": ["-y", "mcp-remote", "https://mcp.honeycomb.io/mcp", "--header", "Authorization: Bearer ${HONEYCOMB_API_KEY}"]
+                "type": "http",
+                "url": "https://mcp.honeycomb.io/mcp",
+                "headers": {
+                  "Authorization": "Bearer ${HONEYCOMB_API_KEY}"
+                }
               }
             }
           }
-          EOF
+          MCPEOF
+          echo "Generated .mcp.json:"
+          cat .mcp.json
+
+      - name: Verify MCP connectivity
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "=== Verifying Claude can reach MCP server ==="
+          claude -p "Call get_workspace_context and tell me the team name." \
+            --output-format stream-json --verbose \
+            --mcp-config .mcp.json --strict-mcp-config \
+            --max-turns 2 \
+            --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
+          echo ""
+          echo "=== Checking for tool_use in output ==="
+          grep -c "tool_use" mcp-verify.ndjson || echo "WARNING: No tool_use blocks found"
 
       - name: Install test dependencies
         run: pip install -r tests/requirements.txt
@@ -51,18 +69,30 @@ jobs:
         if: ${{ !inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
 
       - name: Run comparison tests
         if: ${{ inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
+
+      - name: Upload scenario output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenario-output
+          path: |
+            tests/scenarios/output/
+            mcp-verify.ndjson
+          retention-days: 14
 
       - name: Post summary
         if: always()
         run: |
           echo '## Scenario Test Results' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -30 scenario-output.txt >> $GITHUB_STEP_SUMMARY
+          tail -50 scenario-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No output captured" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

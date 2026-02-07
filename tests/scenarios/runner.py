@@ -9,6 +9,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_DIR = REPO_ROOT / "honeycomb"
+MCP_CONFIG = REPO_ROOT / ".mcp.json"
+OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
 MCP_TOOLS = [
     "mcp__honeycomb__get_workspace_context",
@@ -90,6 +92,17 @@ def _extract_tool_calls_from_ndjson(stdout: str) -> list[ToolCall]:
     return calls
 
 
+def _save_output(scenario_id: str, with_plugin: bool, stdout: str, stderr: str):
+    """Save raw output to flat files for inspection."""
+    label = "with-plugin" if with_plugin else "without-plugin"
+    out_dir = OUTPUT_DIR / scenario_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    (out_dir / f"{label}.ndjson").write_text(stdout)
+    if stderr:
+        (out_dir / f"{label}.stderr").write_text(stderr)
+
+
 def run_scenario(
     scenario_id: str,
     prompt: str,
@@ -100,7 +113,7 @@ def run_scenario(
     """Run a prompt through claude CLI and collect tool calls.
 
     Uses --output-format stream-json --verbose to get per-message output
-    including tool_use blocks.
+    including tool_use blocks. All output is saved to tests/scenarios/output/.
     """
     cmd = [
         "claude", "-p", prompt,
@@ -109,6 +122,9 @@ def run_scenario(
         "--max-turns", str(max_turns),
         "--allowedTools", ",".join(MCP_TOOLS),
     ]
+    # Load MCP config explicitly to avoid project-scope approval issues in CI
+    if MCP_CONFIG.exists():
+        cmd.extend(["--mcp-config", str(MCP_CONFIG), "--strict-mcp-config"])
     if with_plugin:
         cmd.extend(["--plugin-dir", str(PLUGIN_DIR)])
 
@@ -126,6 +142,8 @@ def run_scenario(
         )
         duration_ms = int((time.monotonic() - start) * 1000)
 
+        _save_output(scenario_id, with_plugin, proc.stdout, proc.stderr)
+
         if proc.returncode != 0:
             return ScenarioResult(
                 scenario_id=scenario_id,
@@ -135,10 +153,12 @@ def run_scenario(
                 error=f"claude exited with code {proc.returncode}: {proc.stderr[:500]}",
             )
 
+        tool_calls = _extract_tool_calls_from_ndjson(proc.stdout)
+
         return ScenarioResult(
             scenario_id=scenario_id,
             with_plugin=with_plugin,
-            tool_calls=_extract_tool_calls_from_ndjson(proc.stdout),
+            tool_calls=tool_calls,
             raw_output=proc.stdout,
             duration_ms=duration_ms,
         )

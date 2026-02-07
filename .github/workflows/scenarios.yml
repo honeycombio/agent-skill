@@ -29,32 +29,45 @@ jobs:
       - name: Install Claude CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Install mcp-remote
+        run: npm install -g mcp-remote
+
+      - name: Test mcp-remote directly
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          echo "=== Testing mcp-remote can reach Honeycomb ==="
+          echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}' | \
+            timeout 15 npx mcp-remote https://mcp.honeycomb.io/mcp \
+              --header "Authorization: Bearer ${HONEYCOMB_API_KEY}" 2>&1 | head -5 || echo "mcp-remote exited with $?"
+
       - name: Configure Honeycomb MCP
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
           python3 -c "
           import json, os
+          key = os.environ['HONEYCOMB_API_KEY']
           config = {
               'mcpServers': {
                   'honeycomb': {
                       'command': 'npx',
                       'args': ['-y', 'mcp-remote', 'https://mcp.honeycomb.io/mcp',
-                               '--header', 'Authorization: Bearer \$HONEYCOMB_API_KEY'],
-                      'env': {
-                          'HONEYCOMB_API_KEY': os.environ['HONEYCOMB_API_KEY']
-                      }
+                               '--header', f'Authorization: Bearer {key}']
                   }
               }
           }
           with open('.mcp.json', 'w') as f:
               json.dump(config, f, indent=2)
           "
-          echo "Generated .mcp.json (key redacted):"
-          python3 -c "import json; c=json.load(open('.mcp.json')); c['mcpServers']['honeycomb']['env']['HONEYCOMB_API_KEY']='***'; print(json.dumps(c, indent=2))"
-
-      - name: Pre-install mcp-remote
-        run: npm install -g mcp-remote
+          echo "Generated .mcp.json (args redacted):"
+          python3 -c "
+          import json
+          c = json.load(open('.mcp.json'))
+          args = c['mcpServers']['honeycomb']['args']
+          args[-1] = 'Authorization: Bearer ***'
+          print(json.dumps(c, indent=2))
+          "
 
       - name: Verify MCP connectivity
         env:
@@ -74,7 +87,7 @@ jobs:
             exit 1
           fi
           if grep -q '"status":"needs-auth"' mcp-verify.ndjson; then
-            echo "FATAL: MCP server needs auth — API key not accepted"
+            echo "FATAL: MCP server needs auth"
             exit 1
           fi
           if ! grep -q 'tool_use' mcp-verify.ndjson; then

@@ -159,7 +159,7 @@ jobs:
 
           # Extract pass/fail counts from pytest summary line
           # Format: "=== 1 failed, 19 passed, 20 deselected in 754.76s ==="
-          SUMMARY=$(grep -E '\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
+          SUMMARY=$(grep -P '\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
           FAILED=$(echo "$SUMMARY" | grep -oP '\d+(?= failed)' || echo "0")
           PASSED=$(echo "$SUMMARY" | grep -oP '\d+(?= passed)' || echo "0")
 

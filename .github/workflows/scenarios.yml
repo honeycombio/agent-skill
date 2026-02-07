@@ -129,13 +129,17 @@ jobs:
         if: ${{ !inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
+        run: |
+          set -o pipefail
+          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
 
       - name: Run comparison tests
         if: ${{ inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
+        run: |
+          set -o pipefail
+          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
 
       - name: Upload scenario output
         if: always()

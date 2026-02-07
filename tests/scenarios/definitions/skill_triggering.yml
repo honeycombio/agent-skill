@@ -28,7 +28,7 @@ scenarios:
         - [get_workspace_context, run_query]
     config:
       max_turns: 10
-      timeout_ms: 120000
+      timeout_ms: 180000
 
   - id: trigger-slo-check
     name: "SLO status check triggers slos-and-triggers"
@@ -46,7 +46,7 @@ scenarios:
 
   - id: trigger-trace-exploration
     name: "Trace analysis triggers production-investigation"
-    prompt: "Can you look at a slow trace and tell me where the time is being spent?"
+    prompt: "Find the slowest traces in production and analyze where the time is being spent"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [get_trace]
@@ -56,7 +56,7 @@ scenarios:
         - [get_workspace_context, run_query]
     config:
       max_turns: 10
-      timeout_ms: 120000
+      timeout_ms: 180000
 
   - id: trigger-service-map
     name: "Service dependencies triggers investigation"

@@ -1,4 +1,5 @@
 [tool.pytest.ini_options]
 markers = [
-    "comparison: run with-plugin vs without-plugin comparison (slow, 2x cost)",
+    "core: core subset of scenarios for faster CI comparison runs",
+    "plugin_only: plugin-only tests without baseline comparison",
 ]

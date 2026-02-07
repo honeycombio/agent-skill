@@ -17,6 +17,7 @@ scenarios:
 
   - id: trigger-error-investigation
     name: "Error investigation triggers production-investigation"
+    comparison: true
     prompt: "Why are we seeing so many errors in production? Can you investigate?"
     expected:
       required_tools: [get_workspace_context, run_query]
@@ -32,6 +33,7 @@ scenarios:
 
   - id: trigger-slo-check
     name: "SLO status check triggers slos-and-triggers"
+    comparison: true
     prompt: "Check the status of our SLOs"
     expected:
       required_tools: [get_workspace_context, get_slos]
@@ -60,6 +62,7 @@ scenarios:
 
   - id: trigger-service-map
     name: "Service dependencies triggers investigation"
+    comparison: true
     prompt: "Show me the service dependency map for production"
     expected:
       required_tools: [get_workspace_context, get_service_map]
@@ -101,6 +104,7 @@ scenarios:
 
   - id: trigger-negative-unrelated
     name: "Unrelated prompt should not use Honeycomb tools"
+    comparison: true
     prompt: "Write a Python function that sorts a list of integers using merge sort"
     expected:
       required_tools: []

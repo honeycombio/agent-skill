@@ -3,13 +3,16 @@
 // Bridges stdin/stdout to a Streamable HTTP MCP server with Bearer auth.
 // No OAuth discovery, no external dependencies — just Node.js built-in fetch.
 //
-// Usage: HONEYCOMB_API_KEY=xxx node mcp-http-proxy.mjs
+// Usage: node mcp-http-proxy.mjs <bearer-token> [server-url]
+//    or: HONEYCOMB_API_KEY=xxx node mcp-http-proxy.mjs
 
-const MCP_URL = process.env.MCP_SERVER_URL || 'https://mcp.honeycomb.io/mcp';
-const API_KEY = process.env.HONEYCOMB_API_KEY;
+const API_KEY = process.argv[2] || process.env.HONEYCOMB_API_KEY;
+const MCP_URL = process.argv[3] || process.env.MCP_SERVER_URL || 'https://mcp.honeycomb.io/mcp';
+
+process.stderr.write(`[mcp-http-proxy] starting, url=${MCP_URL}, key=${API_KEY ? 'set' : 'MISSING'}\n`);
 
 if (!API_KEY) {
-  process.stderr.write('Error: HONEYCOMB_API_KEY environment variable is required\n');
+  process.stderr.write('[mcp-http-proxy] Error: pass API key as argv[2] or HONEYCOMB_API_KEY env\n');
   process.exit(1);
 }
 

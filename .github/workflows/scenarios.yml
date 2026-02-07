@@ -36,25 +36,23 @@ jobs:
           python3 -c "
           import json, os
           key = os.environ['HONEYCOMB_API_KEY']
+          cwd = os.getcwd()
           config = {
               'mcpServers': {
                   'honeycomb': {
                       'command': 'node',
-                      'args': ['tests/scenarios/mcp-http-proxy.mjs'],
-                      'env': {
-                          'HONEYCOMB_API_KEY': key
-                      }
+                      'args': [f'{cwd}/tests/scenarios/mcp-http-proxy.mjs', key]
                   }
               }
           }
           with open('.mcp.json', 'w') as f:
               json.dump(config, f, indent=2)
           "
-          echo "Generated .mcp.json:"
+          echo "Generated .mcp.json (key redacted):"
           python3 -c "
           import json
           c = json.load(open('.mcp.json'))
-          c['mcpServers']['honeycomb']['env']['HONEYCOMB_API_KEY'] = '***'
+          c['mcpServers']['honeycomb']['args'][1] = '***'
           print(json.dumps(c, indent=2))
           "
 

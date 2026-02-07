@@ -1,0 +1,39 @@
+scenarios:
+  - id: error-bad-environment
+    name: "Handles bad environment name gracefully"
+    prompt: "Query the latency in the 'nonexistent-env-xyz' environment"
+    expected:
+      required_tools: [get_workspace_context]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering: []
+    config:
+      max_turns: 6
+      timeout_ms: 60000
+
+  - id: error-nonexistent-column
+    name: "Handles nonexistent column gracefully"
+    prompt: "Show me the P99 of the 'fake_nonexistent_metric_xyz' column in production"
+    expected:
+      required_tools: [get_workspace_context]
+      recommended_tools: [find_columns]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering: []
+    config:
+      max_turns: 8
+      timeout_ms: 120000
+
+  - id: error-missing-environment
+    name: "Asks for environment when not specified"
+    prompt: "Run a query to count errors"
+    expected:
+      required_tools: [get_workspace_context]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering: []
+    config:
+      max_turns: 6
+      timeout_ms: 60000

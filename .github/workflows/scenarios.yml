@@ -1,0 +1,68 @@
+name: Scenario Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      comparison:
+        description: "Run with/without plugin comparison"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 6 * * 1,4"  # Mon/Thu 6am UTC
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure Honeycomb MCP for CI
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          cat > .mcp.json << EOF
+          {
+            "mcpServers": {
+              "honeycomb": {
+                "command": "npx",
+                "args": ["-y", "mcp-remote", "https://mcp.honeycomb.io/mcp", "--header", "Authorization: Bearer ${HONEYCOMB_API_KEY}"]
+              }
+            }
+          }
+          EOF
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run scenario tests
+        if: ${{ !inputs.comparison }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
+
+      - name: Run comparison tests
+        if: ${{ inputs.comparison }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo '## Scenario Test Results' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -30 scenario-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

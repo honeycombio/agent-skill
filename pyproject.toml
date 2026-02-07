@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+markers = [
+    "comparison: run with-plugin vs without-plugin comparison (slow, 2x cost)",
+]

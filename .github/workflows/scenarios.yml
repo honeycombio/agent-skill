@@ -33,9 +33,25 @@ jobs:
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
-          claude mcp add --transport http honeycomb https://mcp.honeycomb.io/mcp \
-            --header "Authorization: Bearer ${HONEYCOMB_API_KEY}"
-          echo "MCP server registered"
+          python3 -c "
+          import json, os
+          config = {
+              'mcpServers': {
+                  'honeycomb': {
+                      'command': 'npx',
+                      'args': ['-y', 'mcp-remote', 'https://mcp.honeycomb.io/mcp',
+                               '--header', 'Authorization: Bearer \$HONEYCOMB_API_KEY'],
+                      'env': {
+                          'HONEYCOMB_API_KEY': os.environ['HONEYCOMB_API_KEY']
+                      }
+                  }
+              }
+          }
+          with open('.mcp.json', 'w') as f:
+              json.dump(config, f, indent=2)
+          "
+          echo "Generated .mcp.json (key redacted):"
+          python3 -c "import json; c=json.load(open('.mcp.json')); c['mcpServers']['honeycomb']['env']['HONEYCOMB_API_KEY']='***'; print(json.dumps(c, indent=2))"
 
       - name: Verify MCP connectivity
         env:
@@ -44,6 +60,7 @@ jobs:
           echo "=== Verifying Claude can reach MCP server ==="
           claude -p "Call get_workspace_context and tell me the team name." \
             --output-format stream-json --verbose \
+            --mcp-config .mcp.json \
             --max-turns 2 \
             --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
           echo ""

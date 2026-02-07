@@ -29,35 +29,21 @@ jobs:
       - name: Install Claude CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Configure Honeycomb MCP for CI
+      - name: Configure Honeycomb MCP
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
-          cat > .mcp.json << MCPEOF
-          {
-            "mcpServers": {
-              "honeycomb": {
-                "type": "http",
-                "url": "https://mcp.honeycomb.io/mcp",
-                "headers": {
-                  "Authorization": "Bearer ${HONEYCOMB_API_KEY}"
-                }
-              }
-            }
-          }
-          MCPEOF
-          echo "Generated .mcp.json (key redacted):"
-          sed 's/Bearer .*/Bearer ***"/' .mcp.json
+          claude mcp add --transport http honeycomb https://mcp.honeycomb.io/mcp \
+            --header "Authorization: Bearer ${HONEYCOMB_API_KEY}"
+          echo "MCP server registered"
 
       - name: Verify MCP connectivity
         env:
-          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           echo "=== Verifying Claude can reach MCP server ==="
           claude -p "Call get_workspace_context and tell me the team name." \
             --output-format stream-json --verbose \
-            --mcp-config .mcp.json --strict-mcp-config \
             --max-turns 2 \
             --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
           echo ""
@@ -71,14 +57,12 @@ jobs:
         if: ${{ !inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
 
       - name: Run comparison tests
         if: ${{ inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
 
       - name: Upload scenario output

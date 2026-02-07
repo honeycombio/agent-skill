@@ -9,7 +9,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PLUGIN_DIR = REPO_ROOT / "honeycomb"
-MCP_CONFIG = REPO_ROOT / ".mcp.json"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
 MCP_TOOLS = [
@@ -122,9 +121,6 @@ def run_scenario(
         "--max-turns", str(max_turns),
         "--allowedTools", ",".join(MCP_TOOLS),
     ]
-    # Load MCP config explicitly to avoid project-scope approval issues in CI
-    if MCP_CONFIG.exists():
-        cmd.extend(["--mcp-config", str(MCP_CONFIG), "--strict-mcp-config"])
     if with_plugin:
         cmd.extend(["--plugin-dir", str(PLUGIN_DIR)])
 

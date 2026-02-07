@@ -158,10 +158,10 @@ jobs:
           fi
 
           # Extract pass/fail counts from pytest summary line
-          # Format: "X failed, Y passed" or "Y passed"
-          SUMMARY=$(grep -E '^\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
-          FAILED=$(echo "$SUMMARY" | grep -oP '(\d+) failed' | grep -oP '\d+' || echo "0")
-          PASSED=$(echo "$SUMMARY" | grep -oP '(\d+) passed' | grep -oP '\d+' || echo "0")
+          # Format: "=== 1 failed, 19 passed, 20 deselected in 754.76s ==="
+          SUMMARY=$(grep -E '\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
+          FAILED=$(echo "$SUMMARY" | grep -oP '\d+(?= failed)' || echo "0")
+          PASSED=$(echo "$SUMMARY" | grep -oP '\d+(?= passed)' || echo "0")
 
           echo "Results: ${PASSED} passed, ${FAILED} failed"
           echo "## Scenario Test Results" >> $GITHUB_STEP_SUMMARY

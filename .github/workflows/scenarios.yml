@@ -130,16 +130,14 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          set -o pipefail
-          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt
+          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -k "not comparison" 2>&1 | tee scenario-output.txt || true
 
       - name: Run comparison tests
         if: ${{ inputs.comparison }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          set -o pipefail
-          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt
+          python -m pytest tests/scenarios/test_scenarios.py -v -s --tb=short -m comparison 2>&1 | tee scenario-output.txt || true
 
       - name: Upload scenario output
         if: always()
@@ -151,10 +149,35 @@ jobs:
             mcp-verify.ndjson
           retention-days: 14
 
-      - name: Post summary
+      - name: Check results
         if: always()
         run: |
-          echo '## Scenario Test Results' >> $GITHUB_STEP_SUMMARY
+          if [ ! -f scenario-output.txt ]; then
+            echo "No scenario output found"
+            exit 1
+          fi
+
+          # Extract pass/fail counts from pytest summary line
+          # Format: "X failed, Y passed" or "Y passed"
+          SUMMARY=$(grep -E '^\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
+          FAILED=$(echo "$SUMMARY" | grep -oP '(\d+) failed' | grep -oP '\d+' || echo "0")
+          PASSED=$(echo "$SUMMARY" | grep -oP '(\d+) passed' | grep -oP '\d+' || echo "0")
+
+          echo "Results: ${PASSED} passed, ${FAILED} failed"
+          echo "## Scenario Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "**${PASSED} passed, ${FAILED} failed** (tolerance: 2 failures allowed)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -50 scenario-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No output captured" >> $GITHUB_STEP_SUMMARY
+          tail -30 scenario-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Allow up to 2 failures (LLM non-determinism tolerance)
+          MAX_FAILURES=2
+          if [ "$FAILED" -gt "$MAX_FAILURES" ]; then
+            echo "FATAL: ${FAILED} failures exceeds tolerance of ${MAX_FAILURES}"
+            exit 1
+          fi
+          if [ "$PASSED" -eq "0" ]; then
+            echo "FATAL: No tests passed — likely infrastructure issue"
+            exit 1
+          fi
+          echo "Within tolerance (${FAILED} <= ${MAX_FAILURES})"

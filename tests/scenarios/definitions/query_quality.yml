@@ -1,6 +1,7 @@
 scenarios:
   - id: query-percentiles-for-latency
     name: "Uses percentiles for latency, not AVG"
+    comparison: true
     prompt: "Show me the latency of my API endpoints in production over the last hour"
     expected:
       required_tools: [get_workspace_context, run_query]
@@ -17,6 +18,7 @@ scenarios:
 
   - id: query-heatmap-distribution
     name: "Uses HEATMAP for distribution analysis"
+    comparison: true
     prompt: "I want to see the distribution of request durations in production — are there bimodal patterns?"
     expected:
       required_tools: [get_workspace_context, run_query]
@@ -48,6 +50,7 @@ scenarios:
 
   - id: query-relational-fields
     name: "Uses relational field prefixes for cross-service queries"
+    comparison: true
     prompt: "Find traces where the root span is from the API gateway and any downstream service has errors"
     expected:
       required_tools: [get_workspace_context, run_query]

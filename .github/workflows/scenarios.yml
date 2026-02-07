@@ -56,8 +56,8 @@ jobs:
         env:
           HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
         run: |
-          PROXY_PATH="$(pwd)/tests/scenarios/mcp-http-proxy.mjs"
-          CONFIG_PATH="$(pwd)/.mcp.json"
+          export PROXY_PATH="$(pwd)/tests/scenarios/mcp-http-proxy.mjs"
+          export CONFIG_PATH="$(pwd)/.mcp.json"
 
           python3 -c "
           import json, os

@@ -1,0 +1,29 @@
+name: Structural Tests
+
+on:
+  push:
+    paths:
+      - "honeycomb/**"
+      - "tests/**"
+  pull_request:
+    paths:
+      - "honeycomb/**"
+      - "tests/**"
+
+jobs:
+  structural:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run structural tests
+        run: python -m pytest tests/structural/ -v

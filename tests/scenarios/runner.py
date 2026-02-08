@@ -26,9 +26,16 @@ MCP_TOOLS = [
     "mcp__honeycomb__get_service_map",
     "mcp__honeycomb__get_slos",
     "mcp__honeycomb__get_triggers",
-    "mcp__honeycomb__create_board",
     "mcp__honeycomb__list_boards",
     "mcp__honeycomb__feedback",
+]
+
+# Plugin tools that need to be allowed for skills/agents to activate.
+# The Skill tool is how Claude Code invokes plugin skills — without it
+# in --allowedTools, the plugin loads but skills can never fire.
+PLUGIN_TOOLS = [
+    "Skill",
+    "Task",
 ]
 
 
@@ -115,12 +122,16 @@ def run_scenario(
     Uses --output-format stream-json --verbose to get per-message output
     including tool_use blocks. All output is saved to tests/scenarios/output/.
     """
+    allowed = list(MCP_TOOLS)
+    if with_plugin:
+        allowed.extend(PLUGIN_TOOLS)
+
     cmd = [
         "claude", "-p", prompt,
         "--output-format", "stream-json",
         "--verbose",
         "--max-turns", str(max_turns),
-        "--allowedTools", ",".join(MCP_TOOLS),
+        "--allowedTools", ",".join(allowed),
     ]
     if MCP_CONFIG.exists():
         cmd.extend(["--mcp-config", str(MCP_CONFIG)])

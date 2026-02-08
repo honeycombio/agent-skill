@@ -6,6 +6,9 @@ the test harness, then produces a single HTML file with:
   - Per-scenario side-by-side timeline (plugin vs MCP-only)
   - Collapsible tool call details with arguments and results
   - Evaluation scoring breakdown
+  - Tool call counts and wall clock time per scenario
+  - Skill usage detection and indicators
+  - Full markdown rendering in text blocks (no truncation)
 
 Usage:
     python -m tests.scenarios.report                     # default paths
@@ -14,6 +17,7 @@ Usage:
 
 import html
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -40,6 +44,174 @@ class TimelineEvent:
 def _strip_mcp_prefix(name: str) -> str:
     prefix = "mcp__honeycomb__"
     return name[len(prefix):] if name.startswith(prefix) else name
+
+
+# Known skill names from the plugin
+SKILL_NAMES = [
+    "query-patterns",
+    "production-investigation",
+    "slos-and-triggers",
+    "otel-instrumentation",
+    "beeline-migration",
+]
+
+
+def detect_skill_usage(events: list["TimelineEvent"]) -> list[str]:
+    """Detect which skills appear to be in use based on timeline events.
+
+    Skills are context-based (not tool_use blocks), so we infer usage from:
+    1. Explicit Skill tool_use blocks (if present)
+    2. Text referencing skill concepts or names
+    3. Tool call patterns that match skill-guided behavior
+    """
+    detected: set[str] = set()
+
+    # Patterns that indicate specific skill guidance is active
+    skill_indicators = {
+        "query-patterns": [
+            r"HEATMAP",
+            r"P(?:99|95|90|50|75)\b",
+            r"relational\s+field",
+            r"GROUP\s*BY",
+            r"VISUALIZE",
+            r"query.patterns",
+        ],
+        "production-investigation": [
+            r"BubbleUp",
+            r"investigation\s+playbook",
+            r"root\s+cause\s+analysis",
+            r"trace\s+exploration",
+            r"production.investigation",
+        ],
+        "slos-and-triggers": [
+            r"SLO\b",
+            r"burn\s+rate",
+            r"error\s+budget",
+            r"service\s+level",
+            r"slos.and.triggers",
+        ],
+        "otel-instrumentation": [
+            r"OpenTelemetry",
+            r"OTEL\b",
+            r"otel.instrumentation",
+            r"collector\s+config",
+        ],
+        "beeline-migration": [
+            r"Beeline",
+            r"beeline.migration",
+            r"W3C\s+propagation",
+        ],
+    }
+
+    # Collect all text from events
+    all_text = []
+    for ev in events:
+        if ev.event_type == "text":
+            all_text.append(ev.content)
+        elif ev.event_type == "tool_call":
+            all_text.append(json.dumps(ev.tool_args))
+            # Check for explicit Skill tool invocation
+            if ev.tool_name.lower() == "skill":
+                skill_arg = ev.tool_args.get("skill", "")
+                if skill_arg:
+                    detected.add(skill_arg)
+
+    combined = " ".join(all_text)
+    for skill_name, patterns in skill_indicators.items():
+        for pattern in patterns:
+            if re.search(pattern, combined, re.IGNORECASE):
+                detected.add(skill_name)
+                break
+
+    return sorted(detected)
+
+
+def _markdown_to_html(text: str) -> str:
+    """Convert markdown text to HTML. Handles common markdown constructs.
+
+    This is a lightweight converter for rendering Claude's text output.
+    Handles: headers, bold, italic, code blocks, inline code, links, lists,
+    blockquotes, horizontal rules, and paragraphs.
+    """
+    # Escape HTML first, then selectively convert markdown
+    text = html.escape(text)
+
+    # Fenced code blocks (```lang ... ```)
+    def _code_block(m: re.Match) -> str:
+        lang = m.group(1) or ""
+        code = m.group(2)
+        lang_attr = f' class="language-{lang}"' if lang else ""
+        return f'<pre class="md-code-block"><code{lang_attr}>{code}</code></pre>'
+    text = re.sub(r"```(\w*)\n(.*?)```", _code_block, text, flags=re.DOTALL)
+
+    # Inline code
+    text = re.sub(r"`([^`\n]+)`", r'<code class="md-inline-code">\1</code>', text)
+
+    # Headers (## ... )
+    text = re.sub(r"^######\s+(.+)$", r"<h6>\1</h6>", text, flags=re.MULTILINE)
+    text = re.sub(r"^#####\s+(.+)$", r"<h5>\1</h5>", text, flags=re.MULTILINE)
+    text = re.sub(r"^####\s+(.+)$", r"<h4>\1</h4>", text, flags=re.MULTILINE)
+    text = re.sub(r"^###\s+(.+)$", r"<h3>\1</h3>", text, flags=re.MULTILINE)
+    text = re.sub(r"^##\s+(.+)$", r"<h2>\1</h2>", text, flags=re.MULTILINE)
+    text = re.sub(r"^#\s+(.+)$", r"<h1>\1</h1>", text, flags=re.MULTILINE)
+
+    # Bold and italic
+    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
+
+    # Links [text](url)
+    text = re.sub(
+        r"\[([^\]]+)\]\(([^)]+)\)",
+        r'<a href="\2" target="_blank" rel="noopener">\1</a>',
+        text,
+    )
+
+    # Unordered list items (- item or * item)
+    text = re.sub(r"^[\-\*]\s+(.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
+    # Wrap consecutive <li> tags in <ul>
+    text = re.sub(
+        r"((?:<li>.*?</li>\n?)+)",
+        r"<ul>\1</ul>",
+        text,
+    )
+
+    # Ordered list items (1. item)
+    text = re.sub(r"^\d+\.\s+(.+)$", r"<li>\1</li>", text, flags=re.MULTILINE)
+
+    # Blockquotes
+    text = re.sub(
+        r"^&gt;\s+(.+)$",
+        r"<blockquote>\1</blockquote>",
+        text,
+        flags=re.MULTILINE,
+    )
+
+    # Horizontal rules
+    text = re.sub(r"^---+$", r"<hr>", text, flags=re.MULTILINE)
+
+    # Paragraphs: convert double newlines to paragraph breaks
+    text = re.sub(r"\n\n+", r"</p><p>", text)
+    # Single newlines to <br> (within paragraphs)
+    text = re.sub(r"\n", r"<br>", text)
+
+    # Wrap in paragraph tags if not already wrapped in block elements
+    if not text.startswith(("<h", "<pre", "<ul", "<ol", "<blockquote", "<hr")):
+        text = f"<p>{text}</p>"
+
+    return text
+
+
+def _format_duration(ms: int) -> str:
+    """Format milliseconds as human-readable duration."""
+    if ms < 1000:
+        return f"{ms}ms"
+    secs = ms / 1000
+    if secs < 60:
+        return f"{secs:.1f}s"
+    mins = int(secs // 60)
+    remaining_secs = secs % 60
+    return f"{mins}m {remaining_secs:.0f}s"
 
 
 def parse_ndjson(path: Path) -> list[TimelineEvent]:
@@ -111,7 +283,7 @@ def parse_ndjson(path: Path) -> list[TimelineEvent]:
                         result_content = "\n".join(parts)
                     events.append(TimelineEvent(
                         event_type="tool_result",
-                        content=str(result_content)[:2000],  # truncate large results
+                        content=str(result_content),
                     ))
 
     return events
@@ -126,15 +298,11 @@ def _escape(text: str) -> str:
     return html.escape(str(text))
 
 
-def _format_json(obj: dict | list | str, max_len: int = 1500) -> str:
-    """Pretty-print JSON, truncating if too long."""
+def _format_json(obj: dict | list | str) -> str:
+    """Pretty-print JSON."""
     if isinstance(obj, str):
-        text = obj
-    else:
-        text = json.dumps(obj, indent=2)
-    if len(text) > max_len:
-        text = text[:max_len] + "\n... (truncated)"
-    return text
+        return obj
+    return json.dumps(obj, indent=2)
 
 
 def _verdict_class(verdict: str) -> str:
@@ -157,7 +325,11 @@ def _score_bar(score: float) -> str:
 
 
 def _render_timeline(events: list[TimelineEvent], side_id: str) -> str:
-    """Render a timeline of events as HTML."""
+    """Render a timeline of events as HTML.
+
+    Text blocks are rendered as parsed markdown. Tool arguments and results
+    are shown in full (no truncation) with scrollable containers.
+    """
     if not events:
         return '<div class="timeline-empty">No output recorded</div>'
 
@@ -168,14 +340,11 @@ def _render_timeline(events: list[TimelineEvent], side_id: str) -> str:
         uid = f"{side_id}-step-{step}"
 
         if ev.event_type == "text":
-            # Truncate very long text blocks
-            text = ev.content
-            if len(text) > 800:
-                text = text[:800] + "..."
+            rendered = _markdown_to_html(ev.content)
             parts.append(
                 f'<div class="tl-event tl-text">'
                 f'<div class="tl-badge">Text</div>'
-                f'<div class="tl-body">{_escape(text)}</div>'
+                f'<div class="tl-body md-rendered">{rendered}</div>'
                 f'</div>'
             )
 
@@ -192,15 +361,12 @@ def _render_timeline(events: list[TimelineEvent], side_id: str) -> str:
             )
 
         elif ev.event_type == "tool_result":
-            result_text = ev.content
-            if len(result_text) > 1500:
-                result_text = result_text[:1500] + "... (truncated)"
             parts.append(
                 f'<div class="tl-event tl-tool-result">'
                 f'<div class="tl-badge tl-badge-result">Result</div>'
                 f'<details id="{uid}">'
                 f'<summary>Tool response</summary>'
-                f'<pre class="tl-code">{_escape(result_text)}</pre>'
+                f'<pre class="tl-code">{_escape(ev.content)}</pre>'
                 f'</details>'
                 f'</div>'
             )
@@ -250,6 +416,15 @@ def _render_eval_details(details: dict) -> str:
     return "\n".join(parts)
 
 
+def _render_skill_badges(skills: list[str]) -> str:
+    """Render skill usage badges."""
+    if not skills:
+        return '<span class="skill-none">No skills detected</span>'
+    return " ".join(
+        f'<span class="skill-badge">{_escape(s)}</span>' for s in skills
+    )
+
+
 def _render_scenario_section(result: dict, output_dir: Path) -> str:
     """Render a single scenario comparison section."""
     sid = result["scenario_id"]
@@ -258,19 +433,41 @@ def _render_scenario_section(result: dict, output_dir: Path) -> str:
     verdict = result.get("verdict", "neutral")
     delta = result.get("delta", 0)
 
-    with_score = result["with_plugin"]["score"]
-    without_score = result["without_plugin"]["score"]
+    with_data = result["with_plugin"]
+    without_data = result["without_plugin"]
+    with_score = with_data["score"]
+    without_score = without_data["score"]
+
+    # Tool call counts and durations (from enriched results)
+    with_tc = with_data.get("tool_call_count", 0)
+    without_tc = without_data.get("tool_call_count", 0)
+    with_dur = with_data.get("duration_ms", 0)
+    without_dur = without_data.get("duration_ms", 0)
 
     # Load NDJSON timelines
     scenario_dir = output_dir / sid
     plugin_events = parse_ndjson(scenario_dir / "with-plugin.ndjson")
     baseline_events = parse_ndjson(scenario_dir / "without-plugin.ndjson")
 
+    # If tool_call_count is missing from results, count from NDJSON
+    if with_tc == 0 and plugin_events:
+        with_tc = sum(1 for e in plugin_events if e.event_type == "tool_call")
+    if without_tc == 0 and baseline_events:
+        without_tc = sum(1 for e in baseline_events if e.event_type == "tool_call")
+
+    # Detect skill usage
+    plugin_skills = detect_skill_usage(plugin_events)
+    baseline_skills = detect_skill_usage(baseline_events)
+
     verdict_label = verdict.upper()
     delta_sign = "+" if delta > 0 else ""
 
+    # Format duration strings
+    with_dur_str = _format_duration(with_dur) if with_dur > 0 else "N/A"
+    without_dur_str = _format_duration(without_dur) if without_dur > 0 else "N/A"
+
     return f"""
-    <div class="scenario" id="scenario-{_escape(sid)}">
+    <div class="scenario" id="scenario-{_escape(sid)}" data-verdict="{_escape(verdict)}">
       <div class="scenario-header" onclick="toggleScenario('{_escape(sid)}')">
         <div class="scenario-title">
           <span class="scenario-toggle" id="toggle-{_escape(sid)}">&#9654;</span>
@@ -288,17 +485,48 @@ def _render_scenario_section(result: dict, output_dir: Path) -> str:
           <strong>Prompt:</strong> {_escape(prompt)}
         </div>
 
+        <div class="scenario-metrics">
+          <div class="metric-group">
+            <h5>Tool Calls</h5>
+            <div class="metric-compare">
+              <span class="metric-val">Plugin: <strong>{with_tc}</strong></span>
+              <span class="metric-val">Baseline: <strong>{without_tc}</strong></span>
+              <span class="metric-delta {"metric-better" if with_tc <= without_tc else "metric-worse"}">\
+{("+" if with_tc - without_tc > 0 else "")}{with_tc - without_tc}</span>
+            </div>
+          </div>
+          <div class="metric-group">
+            <h5>Wall Clock Time</h5>
+            <div class="metric-compare">
+              <span class="metric-val">Plugin: <strong>{with_dur_str}</strong></span>
+              <span class="metric-val">Baseline: <strong>{without_dur_str}</strong></span>
+            </div>
+          </div>
+          <div class="metric-group">
+            <h5>Skill Usage (Plugin)</h5>
+            <div class="metric-compare">
+              {_render_skill_badges(plugin_skills)}
+            </div>
+          </div>
+          <div class="metric-group">
+            <h5>Skill Usage (Baseline)</h5>
+            <div class="metric-compare">
+              {_render_skill_badges(baseline_skills)}
+            </div>
+          </div>
+        </div>
+
         <div class="comparison-grid">
           <div class="comparison-col">
             <h4>With Plugin {_score_bar(with_score)}</h4>
-            {_render_eval_details(result["with_plugin"].get("details", {}))}
+            {_render_eval_details(with_data.get("details", {}))}
             <div class="timeline">
               {_render_timeline(plugin_events, f"{sid}-plugin")}
             </div>
           </div>
           <div class="comparison-col">
             <h4>MCP Only (Baseline) {_score_bar(without_score)}</h4>
-            {_render_eval_details(result["without_plugin"].get("details", {}))}
+            {_render_eval_details(without_data.get("details", {}))}
             <div class="timeline">
               {_render_timeline(baseline_events, f"{sid}-baseline")}
             </div>
@@ -336,6 +564,14 @@ def generate_report(
     avg_baseline = sum(r["without_plugin"]["score"] for r in results) / total if total else 0
     avg_delta = avg_plugin - avg_baseline
 
+    # Tool call and duration stats
+    total_plugin_calls = sum(r["with_plugin"].get("tool_call_count", 0) for r in results)
+    total_baseline_calls = sum(r["without_plugin"].get("tool_call_count", 0) for r in results)
+    avg_plugin_calls = total_plugin_calls / total if total else 0
+    avg_baseline_calls = total_baseline_calls / total if total else 0
+    total_plugin_dur = sum(r["with_plugin"].get("duration_ms", 0) for r in results)
+    total_baseline_dur = sum(r["without_plugin"].get("duration_ms", 0) for r in results)
+
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     # Render scenario sections
@@ -352,12 +588,22 @@ def generate_report(
         ds = "+" if d > 0 else ""
         ws = r["with_plugin"]["score"]
         bs = r["without_plugin"]["score"]
+        wtc = r["with_plugin"].get("tool_call_count", 0)
+        btc = r["without_plugin"].get("tool_call_count", 0)
+        wdur = r["with_plugin"].get("duration_ms", 0)
+        bdur = r["without_plugin"].get("duration_ms", 0)
+        wdur_str = _format_duration(wdur) if wdur > 0 else "N/A"
+        bdur_str = _format_duration(bdur) if bdur > 0 else "N/A"
         summary_rows += (
             f'<tr class="summary-row" onclick="scrollToScenario(\'{_escape(sid)}\')">'
             f'<td><a href="#scenario-{_escape(sid)}">{_escape(sid)}</a></td>'
             f'<td>{ws:.2f}</td>'
             f'<td>{bs:.2f}</td>'
             f'<td class="{_verdict_class(v)}">{ds}{d:.2f}</td>'
+            f'<td>{wtc}</td>'
+            f'<td>{btc}</td>'
+            f'<td>{wdur_str}</td>'
+            f'<td>{bdur_str}</td>'
             f'<td><span class="badge {_verdict_class(v)}">{v.upper()}</span></td>'
             f'</tr>'
         )
@@ -644,10 +890,68 @@ def generate_report(
   .tl-body {{
     font-size: 0.85rem;
     color: var(--text);
-    white-space: pre-wrap;
     word-break: break-word;
-    max-height: 200px;
-    overflow-y: auto;
+  }}
+
+  .tl-body.md-rendered {{
+    white-space: normal;
+  }}
+  .tl-body.md-rendered p {{
+    margin: 0.3em 0;
+  }}
+  .tl-body.md-rendered h1,
+  .tl-body.md-rendered h2,
+  .tl-body.md-rendered h3,
+  .tl-body.md-rendered h4,
+  .tl-body.md-rendered h5,
+  .tl-body.md-rendered h6 {{
+    margin: 0.5em 0 0.2em;
+    font-size: 1em;
+    color: var(--accent);
+  }}
+  .tl-body.md-rendered ul,
+  .tl-body.md-rendered ol {{
+    margin: 0.3em 0;
+    padding-left: 1.5em;
+  }}
+  .tl-body.md-rendered li {{
+    margin: 0.15em 0;
+  }}
+  .tl-body.md-rendered blockquote {{
+    border-left: 3px solid var(--accent);
+    padding-left: 0.75em;
+    margin: 0.3em 0;
+    color: var(--text-muted);
+  }}
+  .tl-body.md-rendered a {{
+    color: var(--accent);
+    text-decoration: none;
+  }}
+  .tl-body.md-rendered a:hover {{
+    text-decoration: underline;
+  }}
+  .tl-body.md-rendered strong {{
+    color: var(--text);
+    font-weight: 600;
+  }}
+  .md-code-block {{
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.78rem;
+    white-space: pre;
+    margin: 0.3em 0;
+  }}
+  .md-inline-code {{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.1em 0.3em;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.85em;
   }}
 
   .tl-code {{
@@ -658,10 +962,73 @@ def generate_report(
     border-radius: 4px;
     padding: 0.5rem;
     overflow-x: auto;
-    max-height: 300px;
+    max-height: 600px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-all;
+  }}
+
+  /* Scenario metrics bar */
+  .scenario-metrics {{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding: 0.75rem;
+    background: var(--surface-2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }}
+  .metric-group h5 {{
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.3rem;
+  }}
+  .metric-compare {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }}
+  .metric-val {{
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }}
+  .metric-val strong {{
+    color: var(--text);
+  }}
+  .metric-delta {{
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+  }}
+  .metric-better {{
+    color: var(--green);
+    background: rgba(63, 185, 80, 0.1);
+  }}
+  .metric-worse {{
+    color: var(--red);
+    background: rgba(248, 81, 73, 0.1);
+  }}
+
+  /* Skill badges */
+  .skill-badge {{
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: rgba(88, 166, 255, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+  }}
+  .skill-none {{
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
   }}
 
   details {{ margin-top: 0.25rem; }}
@@ -738,6 +1105,22 @@ def generate_report(
     <span class="stat-value" style="color:{'var(--green)' if avg_delta >= 0 else 'var(--red)'}">{"+" if avg_delta >= 0 else ""}{avg_delta:.2f}</span>
     <span class="stat-label">Avg Delta</span>
   </div>
+  <div class="stat-card">
+    <span class="stat-value">{avg_plugin_calls:.1f}</span>
+    <span class="stat-label">Avg Plugin Tool Calls</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{avg_baseline_calls:.1f}</span>
+    <span class="stat-label">Avg Baseline Tool Calls</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{_format_duration(total_plugin_dur)}</span>
+    <span class="stat-label">Total Plugin Time</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-value">{_format_duration(total_baseline_dur)}</span>
+    <span class="stat-label">Total Baseline Time</span>
+  </div>
 </div>
 
 <h2>Summary</h2>
@@ -745,9 +1128,13 @@ def generate_report(
   <thead>
     <tr>
       <th>Scenario</th>
-      <th>Plugin</th>
-      <th>Baseline</th>
+      <th>Plugin Score</th>
+      <th>Baseline Score</th>
       <th>Delta</th>
+      <th>Plugin Calls</th>
+      <th>Baseline Calls</th>
+      <th>Plugin Time</th>
+      <th>Baseline Time</th>
       <th>Verdict</th>
     </tr>
   </thead>
@@ -805,12 +1192,7 @@ function filterVerdict(verdict) {{
     if (verdict === 'all') {{
       el.style.display = 'block';
     }} else {{
-      const badge = el.querySelector('.badge');
-      if (badge && badge.textContent.toLowerCase().includes(verdict)) {{
-        el.style.display = 'block';
-      }} else {{
-        el.style.display = 'none';
-      }}
+      el.style.display = el.dataset.verdict === verdict ? 'block' : 'none';
     }}
   }});
 }}

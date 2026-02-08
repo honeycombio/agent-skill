@@ -60,23 +60,6 @@ scenarios:
       max_turns: 15
       timeout_ms: 240000
 
-  - id: trigger-board-creation
-    name: "Board creation triggers query-patterns"
-    prompt: "Create a board showing error rates and latency for production"
-    expected:
-      required_tools: [get_workspace_context, run_query, create_board]
-      recommended_tools: []
-      required_patterns: []
-      anti_patterns: []
-      tool_ordering:
-        - [get_workspace_context, run_query]
-        - [run_query, create_board]
-    expected_skills:
-      - query-patterns
-    config:
-      max_turns: 12
-      timeout_ms: 180000
-
   - id: trigger-negative-unrelated
     name: "Unrelated prompt should not use Honeycomb tools"
     comparison: true

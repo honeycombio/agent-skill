@@ -26,8 +26,6 @@ MCP_TOOLS = [
     "mcp__honeycomb__get_service_map",
     "mcp__honeycomb__get_slos",
     "mcp__honeycomb__get_triggers",
-    "mcp__honeycomb__create_board",
-    "mcp__honeycomb__list_boards",
     "mcp__honeycomb__feedback",
 ]
 

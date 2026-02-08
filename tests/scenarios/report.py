@@ -455,9 +455,11 @@ def _render_scenario_section(result: dict, output_dir: Path) -> str:
     if without_tc == 0 and baseline_events:
         without_tc = sum(1 for e in baseline_events if e.event_type == "tool_call")
 
-    # Detect skill usage
-    plugin_skills = detect_skill_usage(plugin_events)
-    baseline_skills = detect_skill_usage(baseline_events)
+    # Skill usage: prefer saved results, fall back to re-detecting from NDJSON
+    plugin_skills = with_data.get("skills_detected") or detect_skill_usage(plugin_events)
+    baseline_skills = without_data.get("skills_detected") or detect_skill_usage(baseline_events)
+    skill_differential = result.get("skill_differential", sorted(set(plugin_skills) - set(baseline_skills)))
+    expected_skills = result.get("expected_skills", [])
 
     verdict_label = verdict.upper()
     delta_sign = "+" if delta > 0 else ""
@@ -503,15 +505,27 @@ def _render_scenario_section(result: dict, output_dir: Path) -> str:
             </div>
           </div>
           <div class="metric-group">
-            <h5>Skill Usage (Plugin)</h5>
+            <h5>Skills Detected (Plugin)</h5>
             <div class="metric-compare">
               {_render_skill_badges(plugin_skills)}
             </div>
           </div>
           <div class="metric-group">
-            <h5>Skill Usage (Baseline)</h5>
+            <h5>Skills Detected (Baseline)</h5>
             <div class="metric-compare">
               {_render_skill_badges(baseline_skills)}
+            </div>
+          </div>
+          <div class="metric-group">
+            <h5>Skill Differential</h5>
+            <div class="metric-compare">
+              {_render_skill_badges(skill_differential) if skill_differential else '<span class="skill-none">None — plugin not adding unique skill behavior</span>'}
+            </div>
+          </div>
+          <div class="metric-group">
+            <h5>Expected Skills</h5>
+            <div class="metric-compare">
+              {_render_skill_badges(expected_skills) if expected_skills else '<span class="skill-none">Not specified</span>'}
             </div>
           </div>
         </div>

@@ -129,6 +129,18 @@ jobs:
       - name: Clear previous output
         run: rm -rf tests/scenarios/output/
 
+      # Canary: fast smoke tests that verify the plugin-dir pipeline is
+      # loading skills and affecting Claude's behavior.  If these fail,
+      # the comparison suite results would be meaningless.
+      - name: Run canary tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/scenarios/test_scenarios.py::test_canary \
+            -v -s --tb=short 2>&1 | tee canary-output.txt
+          echo "## Canary Results" >> $GITHUB_STEP_SUMMARY
+          tail -5 canary-output.txt >> $GITHUB_STEP_SUMMARY
+
       # Always run comparison mode: plugin vs MCP-only for every scenario.
       # Default (scheduled + manual): core subset (~10 scenarios, both modes)
       # Full (manual with full=true): all 20 scenarios, both modes

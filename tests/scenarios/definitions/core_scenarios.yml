@@ -15,6 +15,8 @@ scenarios:
         - '"op":\s*"AVG".*duration'
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000
@@ -32,6 +34,8 @@ scenarios:
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - production-investigation
     config:
       max_turns: 12
       timeout_ms: 180000
@@ -49,6 +53,9 @@ scenarios:
       tool_ordering:
         - [get_workspace_context, run_query]
         - [run_query, get_trace]
+    expected_skills:
+      - query-patterns
+      - production-investigation
     config:
       max_turns: 15
       timeout_ms: 240000
@@ -64,6 +71,8 @@ scenarios:
       tool_ordering:
         - [get_workspace_context, run_query]
         - [run_query, create_board]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 12
       timeout_ms: 180000
@@ -98,6 +107,8 @@ scenarios:
         - '"op":\s*"AVG",\s*"column":\s*"duration'
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000
@@ -114,6 +125,8 @@ scenarios:
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000
@@ -130,6 +143,8 @@ scenarios:
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000
@@ -147,6 +162,8 @@ scenarios:
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000
@@ -164,6 +181,8 @@ scenarios:
         - '"time_range":\s*\d{5,}'
       tool_ordering:
         - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 10
       timeout_ms: 120000

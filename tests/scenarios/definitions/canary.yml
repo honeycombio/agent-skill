@@ -1,0 +1,66 @@
+scenarios:
+  # === Plugin canary tests ===
+  # Minimal, fast tests that verify the plugin context is loaded and
+  # actively steering Claude's behavior.  These run plugin-only (no
+  # baseline) and assert that skill-specific patterns appear in the
+  # output.  If a canary fails, the plugin-dir pipeline is broken and
+  # the rest of the comparison suite results are meaningless.
+
+  - id: canary-query-patterns
+    name: "Canary: query-patterns skill uses P99 for latency"
+    canary: true
+    prompt: "Show me the latency of requests in production over the last hour"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: []
+      # The query-patterns skill explicitly teaches: use percentiles for
+      # latency, never AVG.  Without the skill context, models default to
+      # AVG or COUNT.
+      required_patterns:
+        - '"op":\s*"P(99|95|90|50)"'
+      anti_patterns:
+        - '"op":\s*"AVG",\s*"column":\s*"duration'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
+    config:
+      max_turns: 6
+      timeout_ms: 90000
+
+  - id: canary-investigation-skill
+    name: "Canary: production-investigation skill structures the workflow"
+    canary: true
+    prompt: "There's a latency spike in production, help me investigate"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: []
+      required_patterns:
+        - '"op":\s*"(HEATMAP|P99|P95|P90)"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    expected_skills:
+      - production-investigation
+    config:
+      max_turns: 8
+      timeout_ms: 120000
+
+  - id: canary-slo-skill
+    name: "Canary: slos-and-triggers skill knows about SLO tools"
+    canary: true
+    prompt: "Check our SLOs and tell me which ones are healthy"
+    expected:
+      required_tools: [get_workspace_context, get_slos]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns:
+        - "I don't have access to SLO"
+        - "I cannot check SLO"
+      tool_ordering:
+        - [get_workspace_context, get_slos]
+    expected_skills:
+      - slos-and-triggers
+    config:
+      max_turns: 6
+      timeout_ms: 90000

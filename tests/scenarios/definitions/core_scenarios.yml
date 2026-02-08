@@ -1,0 +1,169 @@
+scenarios:
+  # === Skill triggering & query quality ===
+  # Merged from former skill_triggering.yml and query_quality.yml
+  # Tests individual query patterns and skill activation
+
+  - id: trigger-slow-endpoints
+    name: "Find slow endpoints triggers query-patterns"
+    prompt: "Find the slowest endpoints in my production environment"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns]
+      required_patterns:
+        - '"op":\s*"P(99|95|90)"'
+      anti_patterns:
+        - '"op":\s*"AVG".*duration'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: trigger-error-investigation
+    name: "Error investigation triggers production-investigation"
+    comparison: true
+    prompt: "Why are we seeing so many errors in production? Can you investigate?"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns, run_bubbleup]
+      required_patterns:
+        - '"column":\s*"error"'
+        - '"op":\s*"COUNT"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 12
+      timeout_ms: 180000
+
+  - id: trigger-trace-exploration
+    name: "Trace analysis triggers production-investigation"
+    comparison: true
+    prompt: "Find the slowest traces in production and analyze where the time is being spent"
+    expected:
+      required_tools: [get_workspace_context, run_query, get_trace]
+      recommended_tools: [find_columns]
+      required_patterns:
+        - '"op":\s*"P(99|95|90)"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+        - [run_query, get_trace]
+    config:
+      max_turns: 15
+      timeout_ms: 240000
+
+  - id: trigger-board-creation
+    name: "Board creation triggers query-patterns"
+    prompt: "Create a board showing error rates and latency for production"
+    expected:
+      required_tools: [get_workspace_context, run_query, create_board]
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+        - [run_query, create_board]
+    config:
+      max_turns: 12
+      timeout_ms: 180000
+
+  - id: trigger-negative-unrelated
+    name: "Unrelated prompt should not use Honeycomb tools"
+    comparison: true
+    prompt: "Write a Python function that sorts a list of integers using merge sort"
+    expected:
+      required_tools: []
+      recommended_tools: []
+      required_patterns: []
+      anti_patterns:
+        - 'get_workspace_context'
+        - 'run_query'
+        - 'find_columns'
+      tool_ordering: []
+    config:
+      max_turns: 4
+      timeout_ms: 60000
+
+  - id: query-percentiles-for-latency
+    name: "Uses percentiles for latency, not AVG"
+    comparison: true
+    prompt: "Show me the latency of my API endpoints in production over the last hour"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns]
+      required_patterns:
+        - '"op":\s*"P(99|95|90|50)"'
+      anti_patterns:
+        - '"op":\s*"AVG",\s*"column":\s*"duration'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: query-heatmap-distribution
+    name: "Uses HEATMAP for distribution analysis"
+    comparison: true
+    prompt: "I want to see the distribution of request durations in production — are there bimodal patterns?"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: []
+      required_patterns:
+        - '"op":\s*"HEATMAP"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: query-relational-fields
+    name: "Uses relational field prefixes for cross-service queries"
+    comparison: true
+    prompt: "Find traces where the root span is from the API gateway and any downstream service has errors"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [find_columns]
+      required_patterns:
+        - '"column":\s*"(root\.|any\.)'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: query-combined-operations
+    name: "Combines multiple calculations in one query"
+    comparison: true
+    prompt: "Give me a full picture of API performance — count, latency percentiles, and the distribution"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: []
+      required_patterns:
+        - '"op":\s*"COUNT"'
+        - '"op":\s*"P(99|95|90)"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000
+
+  - id: query-human-readable-time
+    name: "Uses human-readable time ranges"
+    comparison: true
+    prompt: "Show me the error rate over the last 6 hours"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: []
+      required_patterns:
+        - '"time_range":\s*"'
+      anti_patterns:
+        - '"time_range":\s*\d{5,}'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    config:
+      max_turns: 10
+      timeout_ms: 120000

@@ -10,7 +10,7 @@ SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 COMMANDS_DIR = PLUGIN_ROOT / "commands"
 PLUGIN_JSON = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
-MARKETPLACE_JSON = REPO_ROOT / "marketplace.json"
+MARKETPLACE_JSON = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 
 
 @pytest.fixture

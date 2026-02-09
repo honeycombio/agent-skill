@@ -67,7 +67,8 @@ def test_marketplace_plugin_source_exists(marketplace_json_path):
     data = json.loads(marketplace_json_path.read_text())
     for plugin in data["plugins"]:
         source = plugin.get("source", "")
-        resolved = (marketplace_json_path.parent / source).resolve()
+        repo_root = marketplace_json_path.parent.parent
+        resolved = (repo_root / source).resolve()
         assert resolved.is_dir(), (
             f"Plugin source '{source}' does not resolve to a directory: {resolved}"
         )

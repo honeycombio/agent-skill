@@ -72,7 +72,7 @@ const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http")
 // Set env vars for OTLP exporter configuration
 ```
 
-For complete setup per language (including Ruby, .NET, Rust), consult `references/sdk-setup-by-language.md`.
+For complete setup per language (including Ruby, .NET, Rust), consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`.
 
 ## Custom Instrumentation
 
@@ -133,7 +133,7 @@ tracer.startActiveSpan("process-checkout", (span) => {
 });
 ```
 
-For full language-specific examples, consult `references/custom-instrumentation.md`.
+For full language-specific examples, consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`.
 
 ## What to Instrument
 
@@ -204,6 +204,6 @@ Decides after the trace is complete. Keeps interesting traces (errors, slow requ
 ## Additional Resources
 
 ### Reference Files
-- **`references/sdk-setup-by-language.md`** — Complete SDK setup for Go, Python, Node.js, Java, Ruby, .NET, Rust
-- **`references/custom-instrumentation.md`** — Detailed custom instrumentation patterns with full code examples
-- **`references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`** — Complete SDK setup for Go, Python, Node.js, Java, Ruby, .NET, Rust
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`** — Detailed custom instrumentation patterns with full code examples
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling

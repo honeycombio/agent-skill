@@ -96,9 +96,9 @@ Share a single error budget across up to 10 services.
 ## Additional Resources
 
 ### Reference Files
-- **`references/slo-design-guide.md`** — Detailed SLO design methodology, multi-service SLOs, error budget math
-- **`references/trigger-examples.md`** — Complete trigger example library organized by use case
-- **`references/alerting-strategy.md`** — How to combine SLO burn alerts and triggers into a cohesive alerting strategy
+- **`${CLAUDE_PLUGIN_ROOT}/skills/slos-and-triggers/references/slo-design-guide.md`** — Detailed SLO design methodology, multi-service SLOs, error budget math
+- **`${CLAUDE_PLUGIN_ROOT}/skills/slos-and-triggers/references/trigger-examples.md`** — Complete trigger example library organized by use case
+- **`${CLAUDE_PLUGIN_ROOT}/skills/slos-and-triggers/references/alerting-strategy.md`** — How to combine SLO burn alerts and triggers into a cohesive alerting strategy
 
 ### Cross-References
 - For constructing SLI queries and calculated fields, see the **query-patterns** skill

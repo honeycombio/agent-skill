@@ -10,6 +10,7 @@ SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 COMMANDS_DIR = PLUGIN_ROOT / "commands"
 PLUGIN_JSON = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+MARKETPLACE_JSON = REPO_ROOT / "marketplace.json"
 
 
 @pytest.fixture
@@ -35,6 +36,11 @@ def commands_dir():
 @pytest.fixture
 def plugin_json_path():
     return PLUGIN_JSON
+
+
+@pytest.fixture
+def marketplace_json_path():
+    return MARKETPLACE_JSON
 
 
 @pytest.fixture

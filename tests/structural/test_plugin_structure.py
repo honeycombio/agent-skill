@@ -1,6 +1,7 @@
 """Plugin manifest and directory layout tests."""
 
 import json
+import re
 
 import pytest
 
@@ -43,3 +44,62 @@ def test_no_unexpected_top_level_dirs(plugin_root):
     actual = {p.name for p in plugin_root.iterdir() if p.is_dir()}
     unexpected = actual - expected
     assert not unexpected, f"Unexpected top-level directories: {unexpected}"
+
+
+def test_marketplace_json_exists(marketplace_json_path):
+    """marketplace.json exists at repo root."""
+    assert marketplace_json_path.exists(), (
+        f"marketplace.json not found at {marketplace_json_path}"
+    )
+
+
+def test_marketplace_json_valid(marketplace_json_path):
+    """marketplace.json is valid JSON with required fields."""
+    data = json.loads(marketplace_json_path.read_text())
+    for field in ("name", "version", "owner", "plugins"):
+        assert field in data, f"marketplace.json missing required field: {field}"
+    assert isinstance(data["plugins"], list), "plugins must be a list"
+    assert len(data["plugins"]) > 0, "plugins list must not be empty"
+
+
+def test_marketplace_plugin_source_exists(marketplace_json_path):
+    """Each plugin source path in marketplace.json points to an existing directory."""
+    data = json.loads(marketplace_json_path.read_text())
+    for plugin in data["plugins"]:
+        source = plugin.get("source", "")
+        resolved = (marketplace_json_path.parent / source).resolve()
+        assert resolved.is_dir(), (
+            f"Plugin source '{source}' does not resolve to a directory: {resolved}"
+        )
+
+
+def test_marketplace_version_matches_plugin_json(marketplace_json_path, plugin_json_path):
+    """Plugin version in marketplace.json matches plugin.json (single source of truth)."""
+    marketplace = json.loads(marketplace_json_path.read_text())
+    plugin = json.loads(plugin_json_path.read_text())
+    for entry in marketplace["plugins"]:
+        if entry["name"] == plugin["name"]:
+            assert entry["version"] == plugin["version"], (
+                f"Version mismatch: marketplace.json has {entry['version']}, "
+                f"plugin.json has {plugin['version']}"
+            )
+            break
+    else:
+        pytest.fail(
+            f"Plugin '{plugin['name']}' not found in marketplace.json plugins list"
+        )
+
+
+def test_skill_reference_paths_use_plugin_root(skill_md_files):
+    """All references/ paths in SKILL.md files must use ${CLAUDE_PLUGIN_ROOT} prefix."""
+    bare_ref_pattern = re.compile(r"`references/")
+    violations = []
+    for path in skill_md_files:
+        content = path.read_text()
+        for lineno, line in enumerate(content.splitlines(), 1):
+            if bare_ref_pattern.search(line):
+                violations.append(f"{path.name}:{lineno}: {line.strip()}")
+    assert not violations, (
+        "Found bare references/ paths without ${CLAUDE_PLUGIN_ROOT} prefix:\n"
+        + "\n".join(violations)
+    )

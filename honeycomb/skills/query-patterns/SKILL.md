@@ -69,6 +69,6 @@ These are expression functions for calculated fields only — don't confuse with
 ## Additional Resources
 
 ### Reference Files
-- **`references/visualize-operations.md`** — Complete VISUALIZE operation reference with examples
-- **`references/relational-fields.md`** — Detailed relational field guide with cross-service patterns
-- **`references/query-examples.md`** — Extensive query cookbook organized by use case
+- **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/visualize-operations.md`** — Complete VISUALIZE operation reference with examples
+- **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/relational-fields.md`** — Detailed relational field guide with cross-service patterns
+- **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/query-examples.md`** — Extensive query cookbook organized by use case

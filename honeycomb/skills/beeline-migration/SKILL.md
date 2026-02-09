@@ -87,7 +87,7 @@ const beeline = require("honeycomb-beeline")({
 });
 ```
 
-For Java and Ruby configurations, consult `references/w3c-propagation.md`.
+For Java and Ruby configurations, consult `${CLAUDE_PLUGIN_ROOT}/skills/beeline-migration/references/w3c-propagation.md`.
 
 ## Service Migration Checklist
 
@@ -114,5 +114,5 @@ For each service being migrated from Beeline to OTel:
 ## Additional Resources
 
 ### Reference Files
-- **`references/migration-steps-by-language.md`** — Detailed migration code for each language
-- **`references/w3c-propagation.md`** — Complete W3C configuration for all Beeline languages
+- **`${CLAUDE_PLUGIN_ROOT}/skills/beeline-migration/references/migration-steps-by-language.md`** — Detailed migration code for each language
+- **`${CLAUDE_PLUGIN_ROOT}/skills/beeline-migration/references/w3c-propagation.md`** — Complete W3C configuration for all Beeline languages

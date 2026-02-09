@@ -8,7 +8,7 @@ scenarios:
   - id: workflow-full-investigation
     name: "Full investigation workflow: prime, discover, query, analyze"
     comparison: true
-    prompt: "We're seeing a latency spike in production. Investigate what's causing it and find the root cause."
+    prompt: "We're seeing a latency spike in production. Use Honeycomb to investigate what's causing it and find the root cause."
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [find_columns, run_bubbleup, get_trace]
@@ -27,7 +27,7 @@ scenarios:
   - id: workflow-slo-investigation
     name: "SLO-driven investigation"
     comparison: true
-    prompt: "Check our SLOs and tell me which ones are burning budget — then dig into the worst one and find out what's causing it"
+    prompt: "Check our Honeycomb SLOs and tell me which ones are burning budget — then dig into the worst one and find out what's causing it"
     expected:
       required_tools: [get_workspace_context, get_slos, run_query]
       recommended_tools: [run_bubbleup, get_trace]
@@ -45,7 +45,7 @@ scenarios:
   - id: workflow-service-dependencies
     name: "Service dependency mapping with health check"
     comparison: true
-    prompt: "Map out the service dependencies in production and identify any unhealthy connections"
+    prompt: "Use Honeycomb to map out the service dependencies in production and identify any unhealthy connections"
     expected:
       required_tools: [get_workspace_context, get_service_map, run_query]
       recommended_tools: [find_columns]
@@ -64,7 +64,7 @@ scenarios:
   - id: investigation-cascading-failure
     name: "Cascading failure investigation from vague user report"
     comparison: true
-    prompt: "Users are complaining that the site is broken — pages are timing out and checkout isn't working. Can you figure out what's going on?"
+    prompt: "Users are complaining that the site is broken — pages are timing out and checkout isn't working. Can you investigate in Honeycomb and figure out what's going on?"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [get_service_map, run_bubbleup, get_trace]
@@ -85,7 +85,7 @@ scenarios:
   - id: investigation-bubbleup-latency
     name: "Latency investigation using BubbleUp workflow"
     comparison: true
-    prompt: "Checkout has gotten really slow in the last couple hours but I can't tell why — it's not all requests, just some of them are taking forever. Help me figure out what's different about the slow ones."
+    prompt: "Checkout has gotten really slow in the last couple hours but I can't tell why — it's not all requests, just some of them are taking forever. Use Honeycomb to help me figure out what's different about the slow ones."
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [run_bubbleup, get_trace]
@@ -105,7 +105,7 @@ scenarios:
   - id: investigation-cross-service-errors
     name: "Cross-service error correlation using relational fields"
     comparison: true
-    prompt: "The recommendation service is throwing database timeout errors — I need to understand which user-facing endpoints are affected and how bad the impact is on real users."
+    prompt: "The recommendation service is throwing database timeout errors — use Honeycomb to help me understand which user-facing endpoints are affected and how bad the impact is on real users."
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [get_trace, get_service_map]
@@ -123,7 +123,7 @@ scenarios:
   - id: slo-budget-burn-investigation
     name: "SLO budget burn: drill from triggered SLO into root cause"
     comparison: true
-    prompt: "Our checkout SLO is in trouble — I think we got a burn alert. Can you figure out what's eating the error budget and whether we need to page someone?"
+    prompt: "Our checkout SLO in Honeycomb is in trouble — I think we got a burn alert. Can you figure out what's eating the error budget and whether we need to page someone?"
     expected:
       required_tools: [get_workspace_context, get_slos, run_query]
       recommended_tools: [run_bubbleup, get_trace, get_triggers]
@@ -144,7 +144,7 @@ scenarios:
   - id: slo-vs-triggers-health-check
     name: "Cross-reference SLOs and triggers for overall reliability posture"
     comparison: true
-    prompt: "I'm starting on-call for the demo environment. Give me a full reliability picture — which SLOs are healthy, which are at risk, and are any alerts actively firing? Tell me what I should keep an eye on."
+    prompt: "I'm starting on-call for the demo environment. Use Honeycomb to give me a full reliability picture — which SLOs are healthy, which are at risk, and are any alerts actively firing? Tell me what I should keep an eye on."
     expected:
       required_tools: [get_workspace_context, get_slos, get_triggers]
       recommended_tools: [run_query, get_service_map]
@@ -164,7 +164,7 @@ scenarios:
   - id: broken-slo-diagnosis
     name: "Diagnose a broken SLO with 0% compliance and negative budget"
     comparison: true
-    prompt: "One of our SLOs is showing something weird — I think the compliance is at 0% or the budget is deeply negative. Can you figure out what's going on with it and whether the SLO itself is misconfigured or if there's a real problem?"
+    prompt: "One of our Honeycomb SLOs is showing something weird — I think the compliance is at 0% or the budget is deeply negative. Can you figure out what's going on with it and whether the SLO itself is misconfigured or if there's a real problem?"
     expected:
       required_tools: [get_workspace_context, get_slos]
       recommended_tools: [run_query, find_columns, get_dataset_columns]

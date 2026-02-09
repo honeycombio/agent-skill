@@ -9,7 +9,7 @@ scenarios:
   - id: canary-query-patterns
     name: "Canary: query-patterns skill uses P99 for latency"
     canary: true
-    prompt: "Show me the latency of requests in production over the last hour"
+    prompt: "Query Honeycomb to show me the latency of requests in production over the last hour"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []
@@ -22,8 +22,8 @@ scenarios:
         - '"op":\s*"AVG",\s*"column":\s*"duration'
       tool_ordering:
         - [get_workspace_context, run_query]
-    # No expected_skills — this skill loads as context, Claude doesn't
-    # invoke the Skill tool for it.  Value is measured by score delta.
+    expected_skills:
+      - query-patterns
     config:
       max_turns: 6
       timeout_ms: 90000
@@ -31,7 +31,7 @@ scenarios:
   - id: canary-investigation-skill
     name: "Canary: production-investigation skill structures the workflow"
     canary: true
-    prompt: "There's a latency spike in production, help me investigate"
+    prompt: "There's a latency spike in production, help me investigate in Honeycomb"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []
@@ -49,7 +49,7 @@ scenarios:
   - id: canary-slo-skill
     name: "Canary: slos-and-triggers skill knows about SLO tools"
     canary: true
-    prompt: "Check our SLOs and tell me which ones are healthy"
+    prompt: "Check our Honeycomb SLOs and tell me which ones are healthy"
     expected:
       required_tools: [get_workspace_context, get_slos]
       recommended_tools: []
@@ -59,7 +59,8 @@ scenarios:
         - "I cannot check SLO"
       tool_ordering:
         - [get_workspace_context, get_slos]
-    # No expected_skills — context-only skill, no Skill tool invocation.
+    expected_skills:
+      - slos-and-triggers
     config:
       max_turns: 6
       timeout_ms: 90000

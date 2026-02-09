@@ -1,15 +1,16 @@
 ---
 name: Honeycomb SLOs and Triggers
 description: >
-  This skill should be used when the user asks to "create an SLO", "set up a trigger",
-  "configure alerts", "define error budgets", "set up burn alerts", "monitor reliability",
-  "create a Service Level Objective", "configure alerting", "set up PagerDuty notifications",
-  "design an SLI", "check burn rate", "set up Slack alerts for Honeycomb",
-  "define thresholds for alerts", "create a latency SLO", "check SLO status",
-  "check trigger status", "view my SLOs", "view my alerts",
-  "monitor my service", "set up monitoring", "check error budget",
-  or needs guidance on SLOs, triggers, alerting strategy, or notification configuration in Honeycomb.
-  SLIs use calculated fields described in the query-patterns skill.
+  This skill should be used when the user asks about SLOs, alerts, triggers, or
+  reliability monitoring in Honeycomb. Trigger phrases include: "check our SLOs",
+  "are we meeting our SLOs", "which SLOs are healthy", "is the error budget OK",
+  "are any alerts firing", "what's the burn rate", "SLO compliance",
+  "set up an SLO", "create a trigger", "configure alerts", "set up burn alerts",
+  "monitor reliability", "check trigger status", "view my alerts",
+  "starting on-call", "reliability picture", "are we in trouble",
+  "SLO is broken", "budget is negative", "configure PagerDuty", "set up Slack alerts",
+  or any request about service level objectives, error budgets, burn rates, alerting
+  strategy, or notification configuration in Honeycomb.
 version: 1.0.0
 ---
 

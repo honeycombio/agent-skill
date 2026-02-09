@@ -5,7 +5,7 @@ scenarios:
 
   - id: trigger-slow-endpoints
     name: "Find slow endpoints triggers query-patterns"
-    prompt: "Find the slowest endpoints in my production environment"
+    prompt: "Use Honeycomb to find the slowest endpoints in my production environment"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [find_columns]
@@ -24,7 +24,7 @@ scenarios:
   - id: trigger-error-investigation
     name: "Error investigation triggers production-investigation"
     comparison: true
-    prompt: "Why are we seeing so many errors in production? Can you investigate?"
+    prompt: "Why are we seeing so many errors in production? Can you investigate using Honeycomb?"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [find_columns, run_bubbleup]
@@ -43,7 +43,7 @@ scenarios:
   - id: trigger-trace-exploration
     name: "Trace analysis triggers production-investigation"
     comparison: true
-    prompt: "Find the slowest traces in production and analyze where the time is being spent"
+    prompt: "Find the slowest traces in Honeycomb and analyze where the time is being spent"
     expected:
       required_tools: [get_workspace_context, run_query, get_trace]
       recommended_tools: [find_columns]
@@ -80,7 +80,7 @@ scenarios:
   - id: query-percentiles-for-latency
     name: "Uses percentiles for latency, not AVG"
     comparison: true
-    prompt: "Show me the latency of my API endpoints in production over the last hour"
+    prompt: "Query Honeycomb for the latency of my API endpoints in production over the last hour"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [find_columns]
@@ -99,7 +99,7 @@ scenarios:
   - id: query-heatmap-distribution
     name: "Uses HEATMAP for distribution analysis"
     comparison: true
-    prompt: "I want to see the distribution of request durations in production — are there bimodal patterns?"
+    prompt: "Use Honeycomb to show me the distribution of request durations in production — are there bimodal patterns?"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []
@@ -117,7 +117,7 @@ scenarios:
   - id: query-relational-fields
     name: "Uses relational field prefixes for cross-service queries"
     comparison: true
-    prompt: "Find traces where the root span is from the API gateway and any downstream service has errors"
+    prompt: "Query Honeycomb for traces where the root span is from the API gateway and any downstream service has errors"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: [find_columns]
@@ -135,7 +135,7 @@ scenarios:
   - id: query-combined-operations
     name: "Combines multiple calculations in one query"
     comparison: true
-    prompt: "Give me a full picture of API performance — count, latency percentiles, and the distribution"
+    prompt: "Query Honeycomb for a full picture of API performance — count, latency percentiles, and the distribution"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []
@@ -154,7 +154,7 @@ scenarios:
   - id: query-human-readable-time
     name: "Uses human-readable time ranges"
     comparison: true
-    prompt: "Show me the error rate over the last 6 hours"
+    prompt: "Show me the error rate in Honeycomb over the last 6 hours"
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []

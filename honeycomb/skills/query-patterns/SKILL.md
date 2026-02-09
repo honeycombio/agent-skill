@@ -1,15 +1,16 @@
 ---
 name: Honeycomb Query Patterns
 description: >
-  This skill should be used when the user asks to "query Honeycomb", "search traces",
-  "find slow requests", "count errors", "build a Honeycomb query", "use GROUP BY",
-  "filter events", "use VISUALIZE", "check latency", "find outliers by field",
-  "use relational fields", "query across services", "use root. or parent. or child. prefixes",
-  "write a Honeycomb query", "analyze performance", "find error patterns",
-  "discover columns", "find fields", "what fields exist", "what data is available",
-  "query across datasets", "environment-wide query", "check what columns are available",
-  "create a board", "find existing boards", "look at past queries",
-  or needs help constructing queries against Honeycomb data.
+  This skill should be used when the user asks to query Honeycomb, look at data in
+  Honeycomb, or asks questions that require querying observability data. Trigger
+  phrases include: "show me latency", "what's the error rate", "how much traffic",
+  "find slow requests", "count errors", "show me the distribution", "which endpoints",
+  "query Honeycomb", "check latency in Honeycomb", "what does Honeycomb show",
+  "find outliers", "search traces", "look at production metrics",
+  "show me performance", "what data is available in Honeycomb",
+  "find fields", "discover columns", "create a board", "find existing boards",
+  "look at past queries", "query across services", "use relational fields",
+  or any request to retrieve, aggregate, or visualize data from Honeycomb.
 version: 1.0.0
 ---
 

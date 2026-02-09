@@ -22,8 +22,8 @@ scenarios:
         - '"op":\s*"AVG",\s*"column":\s*"duration'
       tool_ordering:
         - [get_workspace_context, run_query]
-    expected_skills:
-      - query-patterns
+    # No expected_skills — this skill loads as context, Claude doesn't
+    # invoke the Skill tool for it.  Value is measured by score delta.
     config:
       max_turns: 6
       timeout_ms: 90000
@@ -59,8 +59,7 @@ scenarios:
         - "I cannot check SLO"
       tool_ordering:
         - [get_workspace_context, get_slos]
-    expected_skills:
-      - slos-and-triggers
+    # No expected_skills — context-only skill, no Skill tool invocation.
     config:
       max_turns: 6
       timeout_ms: 90000

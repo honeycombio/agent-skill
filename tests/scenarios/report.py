@@ -46,82 +46,28 @@ def _strip_mcp_prefix(name: str) -> str:
     return name[len(prefix):] if name.startswith(prefix) else name
 
 
-# Known skill names from the plugin
-SKILL_NAMES = [
-    "query-patterns",
-    "production-investigation",
-    "slos-and-triggers",
-    "otel-instrumentation",
-    "beeline-migration",
-]
-
-
 def detect_skill_usage(events: list["TimelineEvent"]) -> list[str]:
-    """Detect which skills appear to be in use based on timeline events.
+    """Detect which skills were activated based on explicit Skill tool calls.
 
-    Skills are context-based (not tool_use blocks), so we infer usage from:
-    1. Explicit Skill tool_use blocks (if present)
-    2. Text referencing skill concepts or names
-    3. Tool call patterns that match skill-guided behavior
+    Only counts actual Skill tool invocations — not text pattern matching,
+    which false-positives on natural language the model produces when using
+    Honeycomb MCP tools (e.g. mentioning "P99" or "SLO" without the plugin).
     """
     detected: set[str] = set()
 
-    # Patterns that indicate specific skill guidance is active
-    skill_indicators = {
-        "query-patterns": [
-            r"HEATMAP",
-            r"P(?:99|95|90|50|75)\b",
-            r"relational\s+field",
-            r"GROUP\s*BY",
-            r"VISUALIZE",
-            r"query.patterns",
-        ],
-        "production-investigation": [
-            r"BubbleUp",
-            r"investigation\s+playbook",
-            r"root\s+cause\s+analysis",
-            r"trace\s+exploration",
-            r"production.investigation",
-        ],
-        "slos-and-triggers": [
-            r"SLO\b",
-            r"burn\s+rate",
-            r"error\s+budget",
-            r"service\s+level",
-            r"slos.and.triggers",
-        ],
-        "otel-instrumentation": [
-            r"OpenTelemetry",
-            r"OTEL\b",
-            r"otel.instrumentation",
-            r"collector\s+config",
-        ],
-        "beeline-migration": [
-            r"Beeline",
-            r"beeline.migration",
-            r"W3C\s+propagation",
-        ],
-    }
-
-    # Collect all text from events
-    all_text = []
     for ev in events:
-        if ev.event_type == "text":
-            all_text.append(ev.content)
-        elif ev.event_type == "tool_call":
-            all_text.append(json.dumps(ev.tool_args))
-            # Check for explicit Skill tool invocation
-            if ev.tool_name.lower() == "skill":
-                skill_arg = ev.tool_args.get("skill", "")
-                if skill_arg:
-                    detected.add(skill_arg)
-
-    combined = " ".join(all_text)
-    for skill_name, patterns in skill_indicators.items():
-        for pattern in patterns:
-            if re.search(pattern, combined, re.IGNORECASE):
-                detected.add(skill_name)
-                break
+        if ev.event_type != "tool_call":
+            continue
+        if ev.tool_name.lower() != "skill":
+            continue
+        skill_arg = ev.tool_args.get("skill", "")
+        if skill_arg:
+            # Normalize: "honeycomb:query-patterns" → "query-patterns"
+            name = skill_arg.split(":")[-1] if ":" in skill_arg else skill_arg
+            detected.add(name)
+            # Also keep the fully-qualified name if different
+            if name != skill_arg:
+                detected.add(skill_arg)
 
     return sorted(detected)
 

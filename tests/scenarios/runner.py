@@ -39,6 +39,30 @@ PLUGIN_TOOLS = [
 ]
 
 
+def _deep_parse_json(obj):
+    """Recursively parse string values that are valid JSON.
+
+    Tool arguments like query_spec arrive as JSON strings. When
+    json.dumps serialises them the inner quotes get escaped, making
+    regex pattern matching fail.  This walks the structure and
+    parses any string that looks like a JSON object or array so the
+    final dump contains clean, unescaped keys.
+    """
+    if isinstance(obj, str):
+        stripped = obj.strip()
+        if stripped and stripped[0] in ('{', '['):
+            try:
+                return _deep_parse_json(json.loads(stripped))
+            except (json.JSONDecodeError, ValueError):
+                pass
+        return obj
+    if isinstance(obj, dict):
+        return {k: _deep_parse_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_deep_parse_json(v) for v in obj]
+    return obj
+
+
 @dataclass
 class ToolCall:
     """A single tool invocation extracted from Claude output."""
@@ -62,8 +86,13 @@ class ScenarioResult:
 
     @property
     def raw_arguments(self) -> str:
-        """All tool call arguments as a single string for pattern matching."""
-        return json.dumps([tc.arguments for tc in self.tool_calls])
+        """All tool call arguments as a single string for pattern matching.
+
+        Recursively parses any string values that are valid JSON so that
+        patterns can match against the decoded content (e.g. query_spec
+        arrives as a JSON string and would otherwise be double-escaped).
+        """
+        return json.dumps([_deep_parse_json(tc.arguments) for tc in self.tool_calls])
 
 
 def _strip_mcp_prefix(name: str) -> str:

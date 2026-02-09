@@ -33,13 +33,13 @@ def test_all_referenced_tools_are_valid():
 
 
 def test_key_tools_in_skills():
-    """Essential tools (workspace context, find_columns, run_query) appear in skills."""
+    """Essential tools (workspace context, find_columns, run_query) appear in skill trees."""
     essential = {"get_workspace_context", "find_columns", "run_query"}
     skill_refs = set()
     for skill_name in REQUIRED_SKILLS:
-        skill_refs |= _extract_tool_refs(
-            (SKILLS_DIR / skill_name / "SKILL.md").read_text()
-        )
+        skill_dir = SKILLS_DIR / skill_name
+        for md in skill_dir.rglob("*.md"):
+            skill_refs |= _extract_tool_refs(md.read_text())
     missing = essential - skill_refs
     assert not missing, f"Essential tools missing from skills: {sorted(missing)}"
 

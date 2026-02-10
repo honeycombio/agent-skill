@@ -7,7 +7,7 @@
     "url": "https://honeycomb.io"
   },
   "homepage": "https://docs.honeycomb.io/integrations/mcp/",
-  "repository": "https://github.com/honeycombio/honeycomb-claude-plugin",
+  "repository": "https://github.com/honeycombio/agent-skill",
   "license": "Apache-2.0",
   "keywords": [
     "honeycomb",

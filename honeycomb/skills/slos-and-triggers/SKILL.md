@@ -1,5 +1,5 @@
 ---
-name: Honeycomb SLOs and Triggers
+name: slos-and-triggers
 description: >
   This skill should be used when the user asks about SLOs, alerts, triggers, or
   reliability monitoring in Honeycomb. Trigger phrases include: "check our SLOs",
@@ -11,7 +11,8 @@ description: >
   "SLO is broken", "budget is negative", "configure PagerDuty", "set up Slack alerts",
   or any request about service level objectives, error budgets, burn rates, alerting
   strategy, or notification configuration in Honeycomb.
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Honeycomb SLOs and Triggers

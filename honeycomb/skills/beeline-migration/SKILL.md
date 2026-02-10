@@ -1,5 +1,5 @@
 ---
-name: Beeline to OpenTelemetry Migration
+name: beeline-migration
 description: >
   This skill should be used when the user asks to "migrate from Beelines",
   "upgrade from Beeline to OpenTelemetry", "migrate to OTel", "replace Beelines",
@@ -9,7 +9,8 @@ description: >
   "W3C propagation", "incremental migration to OpenTelemetry",
   or needs guidance on migrating from Honeycomb Beelines to OpenTelemetry SDKs.
   For OTel SDK setup after migration, see the otel-instrumentation skill.
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Beeline to OpenTelemetry Migration

@@ -1,5 +1,5 @@
 ---
-name: OpenTelemetry Instrumentation for Honeycomb
+name: otel-instrumentation
 description: >
   This skill should be used when the user asks to "instrument my app", "add tracing",
   "set up OpenTelemetry", "configure OTel", "add custom spans", "add attributes to spans",
@@ -11,7 +11,8 @@ description: >
   "set up head sampling", "set up tail sampling", "configure the OTel Collector",
   or needs guidance on OpenTelemetry SDK setup, custom instrumentation, or sending data to Honeycomb.
   After instrumenting, use the query-patterns skill to verify data is arriving.
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb

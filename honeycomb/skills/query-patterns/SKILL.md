@@ -1,5 +1,5 @@
 ---
-name: Honeycomb Query Patterns
+name: query-patterns
 description: >
   This skill should be used when the user asks to query Honeycomb, look at data in
   Honeycomb, or asks questions that require querying observability data. Trigger
@@ -11,7 +11,8 @@ description: >
   "find fields", "discover columns", "create a board", "find existing boards",
   "look at past queries", "query across services", "use relational fields",
   or any request to retrieve, aggregate, or visualize data from Honeycomb.
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Honeycomb Query Patterns

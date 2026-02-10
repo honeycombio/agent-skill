@@ -1,5 +1,5 @@
 ---
-name: Honeycomb Production Investigation
+name: production-investigation
 description: >
   This skill should be used when the user asks to "investigate a production issue",
   "debug a latency spike", "find root cause", "use BubbleUp", "analyze traces",
@@ -10,7 +10,8 @@ description: >
   "investigate a service", "check service dependencies", "view service map",
   or needs a structured workflow for debugging production problems using Honeycomb.
   For help constructing complex queries, see the query-patterns skill.
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Honeycomb Production Investigation

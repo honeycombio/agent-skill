@@ -45,19 +45,23 @@ After adding, the user will be prompted to authenticate in their browser on firs
 
 ### Option B: API Key (Headless/Unattended Only)
 
-For headless environments, configure via `.mcp.json` in the project root:
+For headless environments where OAuth is not available, use `AskUserQuestion` to collect:
+1. Their API key (format: `<Key ID>:<Secret Key>`)
+2. Their region (from Step 2)
 
-```json
-{
-  "mcpServers": {
-    "honeycomb": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.honeycomb.io/mcp", "--header", "Authorization: Bearer $HONEYCOMB_API_KEY"],
-      "env": { "HONEYCOMB_API_KEY": "<KEY_ID>:<SECRET_KEY>" }
-    }
-  }
-}
+Then run the appropriate command:
+
+**US:**
+```bash
+claude mcp add honeycomb --transport http https://mcp.honeycomb.io/mcp --header "Authorization: Bearer <KEY_ID>:<SECRET_KEY>"
 ```
+
+**EU:**
+```bash
+claude mcp add honeycomb --transport http https://mcp.eu1.honeycomb.io/mcp --header "Authorization: Bearer <KEY_ID>:<SECRET_KEY>"
+```
+
+Replace `<KEY_ID>:<SECRET_KEY>` with the user's actual API key.
 
 **API Key requirements:**
 - Must be a Management API Key (not Ingest key)

@@ -161,6 +161,49 @@ scenarios:
       max_turns: 20
       timeout_ms: 300000
 
+  # --- Result interpretation scenarios ---
+  # Tests whether the agent correctly interprets query results and chains
+  # investigation steps per the result-to-action decision tree.
+
+  - id: interpret-bimodal-latency
+    name: "Recognize bimodal latency signal and confirm with HEATMAP"
+    comparison: true
+    prompt: "Our checkout service P99 is 2 seconds but P50 is only 50ms — that's a 40x ratio. Why is there such a huge gap between fast and slow requests?"
+    expected:
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [run_bubbleup, get_trace]
+      required_patterns:
+        - '"op":\s*"HEATMAP"'
+      anti_patterns:
+        - '"op":\s*"AVG",\s*"column":\s*"duration'
+      tool_ordering:
+        - [get_workspace_context, run_query]
+    expected_skills:
+      - query-patterns
+    config:
+      max_turns: 20
+      timeout_ms: 300000
+
+  - id: interpret-result-chaining
+    name: "Chain query → BubbleUp → trace from a vague anomaly report"
+    comparison: true
+    prompt: "Checkout latency is spiking and I don't know why — can you find the root cause?"
+    expected:
+      required_tools: [get_workspace_context, run_query, run_bubbleup]
+      recommended_tools: [get_trace]
+      required_patterns:
+        - '"op":\s*"(HEATMAP|P99|P95|P90)"'
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, run_query]
+        - [run_query, run_bubbleup]
+    expected_skills:
+      - production-investigation
+      - query-patterns
+    config:
+      max_turns: 25
+      timeout_ms: 360000
+
   - id: broken-slo-diagnosis
     name: "Diagnose a broken SLO with 0% compliance and negative budget"
     comparison: true

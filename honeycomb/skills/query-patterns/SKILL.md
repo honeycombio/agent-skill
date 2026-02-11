@@ -67,9 +67,24 @@ These are expression functions for calculated fields only — don't confuse with
 - Querying without checking columns first (leads to empty results or wrong field names)
 - Creating separate queries when one multi-calculation query would suffice
 
+## Interpreting Results
+
+After running a query, the MCP tool returns formatted markdown plus metadata.
+The most important metadata field is `query_result_json` — a signed URL to the raw
+JSON result. For precise analysis, download it and parse with jq or python rather
+than relying solely on the ASCII rendering.
+
+Key interpretation rules:
+- **P99/P50 > 10x** — bimodal distribution likely; run HEATMAP to confirm
+- **TOTAL row** in breakdown results = aggregate across all groups
+- **OTHER row** = groups beyond the query limit (increase limit if OTHER is large)
+- **ASCII heatmap** `▁▂▃▄▅▆▇█` = density from low to high; two bands = two populations
+- **query_run_pk** in metadata — feed directly to `run_bubbleup` for outlier analysis
+
 ## Additional Resources
 
 ### Reference Files
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/visualize-operations.md`** — Complete VISUALIZE operation reference with examples
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/relational-fields.md`** — Detailed relational field guide with cross-service patterns
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/query-examples.md`** — Extensive query cookbook organized by use case
+- **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/result-interpretation.md`** — Guide to interpreting query results, raw JSON access, and statistical heuristics

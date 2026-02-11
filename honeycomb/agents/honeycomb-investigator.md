@@ -140,6 +140,14 @@ Present findings to the user:
 - **Use human-readable time ranges** — prefer `"24h"`, `"7d"`, `"-2h"` over epoch timestamps
 - **Pace your queries** — rate limit is 50 calls/min for most tools, 10/min for `get_service_map`. Space queries 1-2 seconds apart in multi-step investigations. Combine related questions into single queries where possible (e.g., `VISUALIZE COUNT, P99(duration_ms), HEATMAP(duration_ms)` instead of three queries).
 - **MCP can create boards but cannot add to existing boards** — use `list_boards` to find existing relevant boards first
+- **Download raw results for precise analysis** — Every query result includes a
+  `query_result_json` URL in its metadata. Use `curl` + `jq` or python to download
+  and parse the raw JSON when you need exact values, trend detection, or statistical
+  comparisons that the formatted output can't provide. This is especially valuable for:
+  - Comparing heatmap bucket distributions across time periods
+  - Computing exact error rates from COUNT results
+  - Extracting trace IDs from sample data for follow-up investigation
+  - Detecting trends in time series data programmatically
 
 ## Output Format
 

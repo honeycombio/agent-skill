@@ -13,9 +13,6 @@ scenarios:
     expected:
       required_tools: [get_workspace_context, run_query]
       recommended_tools: []
-      # The query-patterns skill explicitly teaches: use percentiles for
-      # latency, never AVG.  Without the skill context, models default to
-      # AVG or COUNT.
       required_patterns:
         - '"op":\s*"P(99|95|90|50)"'
       anti_patterns:
@@ -49,7 +46,7 @@ scenarios:
   - id: canary-slo-skill
     name: "Canary: slos-and-triggers skill knows about SLO tools"
     canary: true
-    prompt: "Check our Honeycomb SLOs and tell me which ones are healthy"
+    prompt: "Check our SLOs and tell me which ones are healthy"
     expected:
       required_tools: [get_workspace_context, get_slos]
       recommended_tools: []

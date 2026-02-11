@@ -1,16 +1,20 @@
 ---
 name: query-patterns
 description: >
-  This skill should be used when the user asks to query Honeycomb, look at data in
-  Honeycomb, or asks questions that require querying observability data. Trigger
-  phrases include: "show me latency", "what's the error rate", "how much traffic",
-  "find slow requests", "count errors", "show me the distribution", "which endpoints",
-  "query Honeycomb", "check latency in Honeycomb", "what does Honeycomb show",
-  "find outliers", "search traces", "look at production metrics",
-  "show me performance", "what data is available in Honeycomb",
-  "find fields", "discover columns", "create a board", "find existing boards",
+  This skill provides opinionated query construction and result interpretation
+  for Honeycomb — which operations to use (percentiles not AVG for latency,
+  HEATMAP for distributions), how to combine calculations, relational field
+  patterns, and how to interpret results (P99/P50 ratios, heatmap bands,
+  TOTAL/OTHER rows, raw JSON via query_result_json). Load this skill before
+  calling run_query. Trigger phrases: "show me latency", "what's the error rate",
+  "find slow requests", "show me the distribution", "query Honeycomb",
+  "find outliers", "search traces", "why is latency high",
+  "why are some requests slow", "what does this result mean",
+  "explain the heatmap", "interpret these numbers", "is it getting worse",
+  "compare before and after", "find fields", "discover columns", "create a board",
   "look at past queries", "query across services", "use relational fields",
-  or any request to retrieve, aggregate, or visualize data from Honeycomb.
+  "download raw results", or any request to query, visualize, or interpret
+  Honeycomb data.
 metadata:
   version: "1.0.0"
 ---

@@ -1,15 +1,18 @@
 ---
 name: production-investigation
 description: >
-  This skill should be used when the user asks to "investigate a production issue",
-  "debug a latency spike", "find root cause", "use BubbleUp", "analyze traces",
-  "explore a trace waterfall", "investigate an alert", "find what changed",
-  "compare outliers", "debug an outage", "investigate slow requests",
-  "analyze an incident", "look at trace details", "find anomalies",
-  "why is my API slow", "why are requests failing", "what's causing errors",
-  "investigate a service", "check service dependencies", "view service map",
-  or needs a structured workflow for debugging production problems using Honeycomb.
-  For help constructing complex queries, see the query-patterns skill.
+  This skill provides a structured investigation workflow for Honeycomb — the
+  sequence of tool calls (context priming, broad query, BubbleUp, filtered
+  drill-down, trace analysis) and how to chain results between steps using
+  query_run_pk, trace IDs, and BubbleUp differentiators. Without it, queries
+  work but miss the systematic narrowing that identifies root causes. Trigger
+  phrases: "investigate a production issue", "debug a latency spike",
+  "find root cause", "use BubbleUp", "analyze traces", "find what changed",
+  "debug an outage", "why is my API slow", "why are requests failing",
+  "what's causing errors", "something is wrong with", "users are complaining",
+  "latency is spiking", "errors are increasing", "check service dependencies",
+  "view service map", or any request to investigate or debug production problems.
+  For query construction, see the query-patterns skill.
 metadata:
   version: "1.0.0"
 ---

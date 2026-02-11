@@ -1,91 +1,77 @@
 scenarios:
-  # === Skill triggering & query quality ===
-  # Merged from former skill_triggering.yml and query_quality.yml
-  # Tests individual query patterns and skill activation
+  # === Core comparison scenarios ===
+  # Each scenario tests a distinct plugin capability against bare MCP baseline.
+  # Kept to ~7 scenarios to balance coverage with CI runtime (~50 min for full suite).
 
-  - id: trigger-slow-endpoints
-    name: "Find slow endpoints triggers query-patterns"
-    prompt: "Use Honeycomb to find the slowest endpoints in my production environment"
-    expected:
-      required_tools: [get_workspace_context, run_query]
-      recommended_tools: [find_columns]
-      required_patterns:
-        - '"op":\s*"P(99|95|90)"'
-      anti_patterns:
-        - '"op":\s*"AVG".*duration'
-      tool_ordering:
-        - [get_workspace_context, run_query]
-    expected_skills:
-      - query-patterns
-    config:
-      max_turns: 10
-      timeout_ms: 120000
+  # --- Investigation workflows ---
 
-  - id: trigger-error-investigation
-    name: "Error investigation triggers production-investigation"
+  - id: investigation-cascading-failure
+    name: "Full investigation from vague user report"
     comparison: true
-    prompt: "Why are we seeing so many errors in production? Can you investigate using Honeycomb?"
+    prompt: "Users are complaining that the site is broken — pages are timing out and checkout isn't working. Can you investigate in Honeycomb and figure out what's going on?"
     expected:
       required_tools: [get_workspace_context, run_query]
-      recommended_tools: [find_columns, run_bubbleup]
+      recommended_tools: [get_service_map, run_bubbleup, get_trace]
       required_patterns:
+        - '"op":\s*"(HEATMAP|P99|P95|P90)"'
         - '"column":\s*"error"'
-        - '"op":\s*"COUNT"'
-      anti_patterns: []
+      anti_patterns:
+        - '"op":\s*"AVG",\s*"column":\s*"duration'
       tool_ordering:
         - [get_workspace_context, run_query]
     expected_skills:
       - production-investigation
+      - query-patterns
     config:
-      max_turns: 12
-      timeout_ms: 180000
+      max_turns: 20
+      timeout_ms: 300000
 
-  - id: trigger-trace-exploration
-    name: "Trace analysis triggers production-investigation"
+  - id: investigation-cross-service-errors
+    name: "Cross-service error correlation using relational fields"
     comparison: true
-    prompt: "Find the slowest traces in Honeycomb and analyze where the time is being spent"
+    prompt: "The recommendation service is throwing database timeout errors — use Honeycomb to help me understand which user-facing endpoints are affected and how bad the impact is on real users."
     expected:
-      required_tools: [get_workspace_context, run_query, get_trace]
-      recommended_tools: [find_columns]
+      required_tools: [get_workspace_context, run_query]
+      recommended_tools: [get_trace, get_service_map]
       required_patterns:
-        - '"op":\s*"P(99|95|90)"'
+        - '"column":\s*"(any\.|root\.)'
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
-        - [run_query, get_trace]
     expected_skills:
       - query-patterns
+    config:
+      max_turns: 20
+      timeout_ms: 300000
+
+  - id: workflow-service-dependencies
+    name: "Service dependency mapping with health check"
+    comparison: true
+    prompt: "Use Honeycomb to map out the service dependencies in production and identify any unhealthy connections"
+    expected:
+      required_tools: [get_workspace_context, get_service_map, run_query]
+      recommended_tools: [find_columns]
+      required_patterns: []
+      anti_patterns: []
+      tool_ordering:
+        - [get_workspace_context, get_service_map]
+    expected_skills:
       - production-investigation
     config:
       max_turns: 15
-      timeout_ms: 240000
+      timeout_ms: 300000
 
-  - id: trigger-negative-unrelated
-    name: "Unrelated prompt should not use Honeycomb tools"
-    comparison: true
-    prompt: "Write a Python function that sorts a list of integers using merge sort"
-    expected:
-      required_tools: []
-      recommended_tools: []
-      required_patterns: []
-      anti_patterns:
-        - 'get_workspace_context'
-        - 'run_query'
-        - 'find_columns'
-      tool_ordering: []
-    config:
-      max_turns: 4
-      timeout_ms: 60000
+  # --- Result interpretation ---
 
-  - id: query-percentiles-for-latency
-    name: "Uses percentiles for latency, not AVG"
+  - id: interpret-bimodal-latency
+    name: "Recognize bimodal latency signal and confirm with HEATMAP"
     comparison: true
-    prompt: "Query Honeycomb for the latency of my API endpoints in production over the last hour"
+    prompt: "Some checkout requests are fast but others are really slow — why are some requests taking so much longer than others?"
     expected:
       required_tools: [get_workspace_context, run_query]
-      recommended_tools: [find_columns]
+      recommended_tools: [run_bubbleup, get_trace]
       required_patterns:
-        - '"op":\s*"P(99|95|90|50)"'
+        - '"op":\s*"HEATMAP"'
       anti_patterns:
         - '"op":\s*"AVG",\s*"column":\s*"duration'
       tool_ordering:
@@ -93,79 +79,68 @@ scenarios:
     expected_skills:
       - query-patterns
     config:
-      max_turns: 10
-      timeout_ms: 120000
+      max_turns: 20
+      timeout_ms: 300000
 
-  - id: query-heatmap-distribution
-    name: "Uses HEATMAP for distribution analysis"
+  - id: interpret-result-chaining
+    name: "Chain query → BubbleUp → trace from a vague anomaly report"
     comparison: true
-    prompt: "Use Honeycomb to show me the distribution of request durations in production — are there bimodal patterns?"
+    prompt: "Checkout latency is spiking and I don't know why — can you find the root cause?"
     expected:
-      required_tools: [get_workspace_context, run_query]
-      recommended_tools: []
+      required_tools: [get_workspace_context, run_query, run_bubbleup]
+      recommended_tools: [get_trace]
       required_patterns:
-        - '"op":\s*"HEATMAP"'
+        - '"op":\s*"(HEATMAP|P99|P95|P90)"'
       anti_patterns: []
       tool_ordering:
         - [get_workspace_context, run_query]
+        - [run_query, run_bubbleup]
     expected_skills:
+      - production-investigation
       - query-patterns
     config:
-      max_turns: 10
-      timeout_ms: 120000
+      max_turns: 25
+      timeout_ms: 360000
 
-  - id: query-relational-fields
-    name: "Uses relational field prefixes for cross-service queries"
-    comparison: true
-    prompt: "Query Honeycomb for traces where the root span is from the API gateway and any downstream service has errors"
-    expected:
-      required_tools: [get_workspace_context, run_query]
-      recommended_tools: [find_columns]
-      required_patterns:
-        - '"column":\s*"(root\.|any\.)'
-      anti_patterns: []
-      tool_ordering:
-        - [get_workspace_context, run_query]
-    expected_skills:
-      - query-patterns
-    config:
-      max_turns: 10
-      timeout_ms: 120000
+  # --- SLO and reliability ---
 
-  - id: query-combined-operations
-    name: "Combines multiple calculations in one query"
+  - id: slo-budget-burn-investigation
+    name: "SLO budget burn: drill from triggered SLO into root cause"
     comparison: true
-    prompt: "Query Honeycomb for a full picture of API performance — count, latency percentiles, and the distribution"
+    prompt: "Our checkout SLO is in trouble — I think we got a burn alert. Can you figure out what's eating the error budget and whether we need to page someone?"
     expected:
-      required_tools: [get_workspace_context, run_query]
-      recommended_tools: []
-      required_patterns:
-        - '"op":\s*"COUNT"'
-        - '"op":\s*"P(99|95|90)"'
-      anti_patterns: []
-      tool_ordering:
-        - [get_workspace_context, run_query]
-    expected_skills:
-      - query-patterns
-    config:
-      max_turns: 10
-      timeout_ms: 120000
-
-  - id: query-human-readable-time
-    name: "Uses human-readable time ranges"
-    comparison: true
-    prompt: "Show me the error rate in Honeycomb over the last 6 hours"
-    expected:
-      required_tools: [get_workspace_context, run_query]
-      recommended_tools: []
-      required_patterns:
-        - '"time_range":\s*"'
+      required_tools: [get_workspace_context, get_slos, run_query]
+      recommended_tools: [run_bubbleup, get_trace, get_triggers]
+      required_patterns: []
       anti_patterns:
-        - '"time_range":\s*\d{5,}'
+        - "I don't have access to SLO"
+        - "I cannot check SLO"
       tool_ordering:
-        - [get_workspace_context, run_query]
+        - [get_workspace_context, get_slos]
+        - [get_slos, run_query]
     expected_skills:
-      - query-patterns
+      - slos-and-triggers
+      - production-investigation
     config:
-      max_turns: 10
-      timeout_ms: 120000
+      max_turns: 20
+      timeout_ms: 300000
+
+  - id: slo-vs-triggers-health-check
+    name: "Cross-reference SLOs and triggers for overall reliability posture"
+    comparison: true
+    prompt: "I'm starting on-call for the demo environment. Give me a full reliability picture — which SLOs are healthy, which are at risk, and are any alerts actively firing?"
+    expected:
+      required_tools: [get_workspace_context, get_slos, get_triggers]
+      recommended_tools: [run_query, get_service_map]
+      required_patterns: []
+      anti_patterns:
+        - "I don't have access to triggers"
+        - "I cannot check triggers"
+      tool_ordering:
+        - [get_workspace_context, get_slos]
+        - [get_workspace_context, get_triggers]
+    expected_skills:
+      - slos-and-triggers
+    config:
+      max_turns: 20
+      timeout_ms: 300000

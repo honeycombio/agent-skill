@@ -16,7 +16,7 @@ description: >
   "download raw results", or any request to query, visualize, or interpret
   Honeycomb data.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Honeycomb Query Patterns

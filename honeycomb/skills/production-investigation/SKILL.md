@@ -14,7 +14,7 @@ description: >
   "view service map", or any request to investigate or debug production problems.
   For query construction, see the query-patterns skill.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Honeycomb Production Investigation

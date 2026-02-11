@@ -5,18 +5,18 @@ description: >
   for Honeycomb — which operations to use (percentiles not AVG for latency,
   HEATMAP for distributions), how to combine calculations, relational field
   patterns, and how to interpret results (P99/P50 ratios, heatmap bands,
-  TOTAL/OTHER rows, raw JSON via query_result_json). Load this skill before
-  calling run_query. Trigger phrases: "show me latency", "what's the error rate",
+  TOTAL/OTHER rows, raw JSON via query_result_json). This skill should be loaded
+  before calling run_query. Trigger phrases: "show me latency", "what's the error rate",
   "find slow requests", "show me the distribution", "query Honeycomb",
   "find outliers", "search traces", "why is latency high",
   "why are some requests slow", "what does this result mean",
   "explain the heatmap", "interpret these numbers", "is it getting worse",
-  "compare before and after", "find fields", "discover columns", "create a board",
+  "compare before and after", "find fields", "discover columns",
   "look at past queries", "query across services", "use relational fields",
   "download raw results", or any request to query, visualize, or interpret
   Honeycomb data.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Honeycomb Query Patterns

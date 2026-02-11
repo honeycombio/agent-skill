@@ -5,7 +5,7 @@ description: >
   budget burn rates, and trigger status. The get_slos and get_triggers tools return
   raw numbers; this skill tells you what they mean and what action to take — detecting
   misconfigured SLIs, deciding when to freeze deploys vs page on-call, and designing
-  burn alert thresholds. Load this skill before calling get_slos or get_triggers.
+  burn alert thresholds. This skill should be loaded before calling get_slos or get_triggers.
   Trigger phrases: "check our SLOs", "are we meeting our SLOs", "which SLOs are
   healthy", "is the error budget OK", "are any alerts firing", "what's the burn rate",
   "set up an SLO", "create a trigger", "configure alerts", "set up burn alerts",
@@ -14,7 +14,7 @@ description: >
   "SLO is broken", "budget is negative", or any request about service level
   objectives, error budgets, burn rates, or alerting in Honeycomb.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Honeycomb SLOs and Triggers

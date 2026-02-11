@@ -10,9 +10,8 @@ description: >
   "add observability", "improve instrumentation", "configure sampling",
   "set up head sampling", "set up tail sampling", "configure the OTel Collector",
   or needs guidance on OpenTelemetry SDK setup, custom instrumentation, or sending data to Honeycomb.
-  After instrumenting, use the query-patterns skill to verify data is arriving.
 metadata:
-  version: "1.0.0"
+  version: "1.2.0"
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb
@@ -208,3 +207,6 @@ Decides after the trace is complete. Keeps interesting traces (errors, slow requ
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`** — Complete SDK setup for Go, Python, Node.js, Java, Ruby, .NET, Rust
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`** — Detailed custom instrumentation patterns with full code examples
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling
+
+### Cross-References
+- After instrumenting, use the **query-patterns** skill to verify data is arriving in Honeycomb

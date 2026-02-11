@@ -8,9 +8,8 @@ description: >
   "migrate Java Beeline", "migrate Ruby Beeline", "W3C trace headers",
   "W3C propagation", "incremental migration to OpenTelemetry",
   or needs guidance on migrating from Honeycomb Beelines to OpenTelemetry SDKs.
-  For OTel SDK setup after migration, see the otel-instrumentation skill.
 metadata:
-  version: "1.0.0"
+  version: "1.2.0"
 ---
 
 # Beeline to OpenTelemetry Migration
@@ -117,3 +116,6 @@ For each service being migrated from Beeline to OTel:
 ### Reference Files
 - **`${CLAUDE_PLUGIN_ROOT}/skills/beeline-migration/references/migration-steps-by-language.md`** — Detailed migration code for each language
 - **`${CLAUDE_PLUGIN_ROOT}/skills/beeline-migration/references/w3c-propagation.md`** — Complete W3C configuration for all Beeline languages
+
+### Cross-References
+- For OTel SDK setup after migration, see the **otel-instrumentation** skill

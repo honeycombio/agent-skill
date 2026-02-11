@@ -5,16 +5,16 @@ description: >
   sequence of tool calls (context priming, broad query, BubbleUp, filtered
   drill-down, trace analysis) and how to chain results between steps using
   query_run_pk, trace IDs, and BubbleUp differentiators. Without it, queries
-  work but miss the systematic narrowing that identifies root causes. Trigger
-  phrases: "investigate a production issue", "debug a latency spike",
+  work but miss the systematic narrowing that identifies root causes.
+  Trigger phrases: "investigate a production issue", "debug a latency spike",
   "find root cause", "use BubbleUp", "analyze traces", "find what changed",
   "debug an outage", "why is my API slow", "why are requests failing",
   "what's causing errors", "something is wrong with", "users are complaining",
   "latency is spiking", "errors are increasing", "check service dependencies",
-  "view service map", or any request to investigate or debug production problems.
-  For query construction, see the query-patterns skill.
+  "view service map", "health check", "SLO burning",
+  or any request to investigate or debug production problems.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Honeycomb Production Investigation
@@ -94,3 +94,14 @@ P99 grouped by deployment.version → BubbleUp comparing new vs old → trace fr
 - **No results**: Check field names with `find_columns`, expand time range, verify environment/dataset
 - **BubbleUp shows no signal**: Try a different time selection, add filters to isolate the anomaly more clearly, or select a different calculation
 - **Trace missing spans**: Sampling, instrumentation gaps, or cross-environment trace split
+
+## Additional Resources
+
+### Reference Files
+- **`${CLAUDE_PLUGIN_ROOT}/skills/production-investigation/references/investigation-playbooks.md`** — Step-by-step playbooks for latency spikes, error surges, deployment regressions, dependency failures, SLO budget burn, and health checks
+- **`${CLAUDE_PLUGIN_ROOT}/skills/production-investigation/references/bubbleup-guide.md`** — Detailed BubbleUp usage: selection types, time specifications, pagination, result interpretation
+- **`${CLAUDE_PLUGIN_ROOT}/skills/production-investigation/references/trace-exploration.md`** — Trace structure, get_trace parameters and view modes, waterfall analysis, span events and links
+
+### Cross-References
+- For query construction patterns, see the **query-patterns** skill
+- For SLO/trigger context during investigations, see the **slos-and-triggers** skill

@@ -141,10 +141,20 @@ Rank gaps by debugging value — what would help most during an incident:
 - Feature flag attributes
 - Detailed timing within complex operations
 
+When prioritizing, think about the core analysis loop: which attributes would help
+BubbleUp find root causes during an incident? User identity, deployment context, and
+business operations are high value because they're the dimensions that most often
+differentiate healthy from unhealthy traffic. Instrument for the questions you'll ask
+at 3am, not for completeness.
+
 ### Step 5: Write Instrumentation Code
 
 Apply changes following these principles:
 
+- **Explain the debugging value of each recommendation** — for example: "Adding `user.id`
+  means BubbleUp can identify if a single user or tenant is affected, which is often the
+  fastest path to root cause" or "Adding `deployment.version` lets BubbleUp instantly flag
+  a bad deploy by comparing version distributions in outlier vs baseline traffic."
 - **Add attributes to existing spans before creating new ones** — highest value, lowest risk
 - **Use auto-instrumentation libraries** where available (HTTP, DB, gRPC)
 - **Follow OTel semantic conventions** for standard attributes (`http.method`, `db.system`, etc.)
@@ -181,7 +191,8 @@ For each recommendation:
 
 - **Read before writing** — always understand existing code and patterns before modifying
 - **Match existing style** — if the codebase uses a specific OTel wrapper or pattern, follow it
-- **Don't add dependencies without asking** — if a new OTel package is needed, recommend it but confirm before installing
-- **Don't remove existing instrumentation** — only add to it
-- **Ask if scope is unclear** — if the user says "instrument my app" but has 20 services, ask which one to start with
-- **Respect the otel-instrumentation skill** — for pure SDK setup questions (no gap analysis needed), defer to that skill instead
+- **Confirm with the user before adding new OTel packages** — recommend the dependency and wait for approval before installing
+- **Only add to existing instrumentation** — preserve everything already there; your job is enrichment, not replacement
+- **Clarify scope when ambiguous** — if the user says "instrument my app" but has 20 services, ask which one to start with
+- **Defer to the otel-instrumentation skill** for pure SDK setup questions where no gap analysis is needed
+- **Query cheaply first, then go wide** — before running long or wide-scoped queries, run fast narrow ones on recent data to confirm the fields and spans you're looking for actually exist. Use `find_columns` and short time ranges to validate, then expand scope once you know what's there

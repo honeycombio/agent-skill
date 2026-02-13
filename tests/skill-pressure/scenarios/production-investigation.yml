@@ -15,7 +15,8 @@ scenarios:
         - "(?i)verify|hypothesis|confirm|control"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)query|dashboard|check"
 
   - id: bubbleup-chaining
     name: "Chain BubbleUp results into filtered drill-down"
@@ -29,7 +30,8 @@ scenarios:
         - "(?i)control|compare|without|baseline"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)rollback|revert|deploy"
 
   - id: vague-report-structured
     name: "Structured approach to vague user complaints"
@@ -44,4 +46,5 @@ scenarios:
         - "(?i)bubbleup|bubble.?up|run_bubbleup"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)run_query|query|error"

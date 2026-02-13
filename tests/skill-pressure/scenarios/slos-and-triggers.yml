@@ -12,7 +12,8 @@ scenarios:
         - "(?i)freeze|halt|stop|pause.*deploy"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)budget|error.budget|remaining"
 
   - id: zero-compliance
     name: "Identify misconfigured SLI from zero compliance"
@@ -24,7 +25,8 @@ scenarios:
         - "(?i)misconfigur|wrong (column|field)|inverted|SLI.*(definition|config|setup|wrong|check)"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)investigate|check|look.at"
 
   - id: trigger-design
     name: "Prefer COUNT-based triggers over P99"

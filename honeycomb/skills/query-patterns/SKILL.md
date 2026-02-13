@@ -1,11 +1,11 @@
 ---
 name: query-patterns
 description: >
-  This skill provides opinionated query construction and result interpretation
-  for Honeycomb — which operations to use (percentiles not AVG for latency,
+  Use when constructing or interpreting Honeycomb queries — provides opinionated
+  guidance on which operations to use (percentiles not AVG for latency,
   HEATMAP for distributions), how to combine calculations, relational field
   patterns, and how to interpret results (P99/P50 ratios, heatmap bands,
-  TOTAL/OTHER rows, raw JSON via query_result_json). This skill should be loaded
+  TOTAL/OTHER rows, raw JSON via query_result_json). Load this skill
   before calling run_query. Trigger phrases: "show me latency", "what's the error rate",
   "find slow requests", "show me the distribution", "query Honeycomb",
   "find outliers", "search traces", "why is latency high",
@@ -63,13 +63,13 @@ Use inline calculated fields to create boolean columns for filtering and groupin
 
 These are expression functions for calculated fields only — don't confuse with filter operators (which use `=`, `>=`, etc.).
 
-## Common Mistakes
+## Always Check
 
-- Using `AVG(duration_ms)` for latency (hides P99 problems)
-- Forgetting to filter `is_root` when measuring user-facing latency (includes internal spans)
-- Using epoch timestamps instead of human-readable time ranges (`"24h"`, `"-6h"`)
-- Querying without checking columns first (leads to empty results or wrong field names)
-- Creating separate queries when one multi-calculation query would suffice
+- **Use P99/P95 for latency**, not AVG — AVG hides tail latency that affects real users
+- **Filter on `is_root`** when measuring user-facing latency — without it, internal spans inflate the numbers
+- **Use human-readable time ranges** (`"24h"`, `"-6h"`) — epoch timestamps are error-prone and hard to review
+- **Validate columns with `find_columns` before querying** — confirms field names exist and prevents empty results
+- **Combine calculations in one query** (`COUNT, P99(duration_ms), HEATMAP(duration_ms)`) — reduces API calls and gives a complete picture in one view
 
 ## Interpreting Results
 

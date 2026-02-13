@@ -1,7 +1,7 @@
 ---
 name: beeline-migration
 description: >
-  This skill should be used when the user asks to "migrate from Beelines",
+  Use when the user asks to "migrate from Beelines",
   "upgrade from Beeline to OpenTelemetry", "migrate to OTel", "replace Beelines",
   "Beeline end of life", "Beeline EOL", "switch from Beeline to OTel",
   "migrate Go Beeline", "migrate Python Beeline", "migrate Node Beeline",
@@ -104,12 +104,12 @@ For each service being migrated from Beeline to OTel:
 - [ ] Deploy and verify: traces link across Beeline and OTel services
 - [ ] Verify: custom attributes appear in Honeycomb
 
-## Common Pitfalls
+## Migration Safety Checklist
 
-- **Skipping Phase 1**: Migrating to OTel before W3C is everywhere breaks trace linking
-- **Changing service names**: Keep `OTEL_SERVICE_NAME` identical to Beeline service name
-- **Missing custom instrumentation**: Audit Beeline `addField()` calls before removing
-- **Different attribute names**: OTel auto-instrumentation may use different field names than Beeline
+- **Complete Phase 1 across all services before starting Phase 2** — mixed propagation formats break trace linking across service boundaries
+- **Keep `OTEL_SERVICE_NAME` identical to the Beeline service name** — Honeycomb uses this as the dataset name, and changing it splits your data into a new dataset
+- **Audit all Beeline `addField()` calls before removing the Beeline SDK** — each one needs a corresponding `span.set_attribute()` in OTel to preserve your query dimensions
+- **Compare OTel auto-instrumentation field names against Beeline field names** — OTel may use different attribute names (e.g., `http.request.method` vs `request.method`), and dashboards or SLIs referencing the old names will need updating
 
 ## Additional Resources
 

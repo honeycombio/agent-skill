@@ -1,7 +1,7 @@
 ---
 name: production-investigation
 description: >
-  This skill provides a structured investigation workflow for Honeycomb — the
+  Use when investigating production issues in Honeycomb — provides the structured
   sequence of tool calls (context priming, broad query, BubbleUp, filtered
   drill-down, trace analysis) and how to chain results between steps using
   query_run_pk, trace IDs, and BubbleUp differentiators. Without it, queries
@@ -14,7 +14,7 @@ description: >
   "view service map", "health check", "SLO burning",
   or any request to investigate or debug production problems.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # Honeycomb Production Investigation
@@ -22,6 +22,28 @@ metadata:
 Structured workflows for debugging production issues. The MCP tools document their
 own parameters — this skill focuses on the *sequence* of tool calls and how to
 *interpret* results to reach a root cause.
+
+## The Core Analysis Loop
+
+This investigation workflow implements Honeycomb's core analysis loop:
+**Define -> Visualize -> Investigate -> Evaluate**. Each step below maps to a phase
+of the loop:
+
+- **Step 1 (Orient)** = **Define** — frame the question using SLOs, triggers, and prior queries.
+- **Step 2 (Characterize)** = **Visualize** — run a broad query to see the shape of the problem.
+- **Step 3 (BubbleUp)** = **Investigate** — automated search for the dimensions that differentiate
+  outlier traffic from healthy traffic. BubbleUp compares distributions across *all* columns,
+  surfacing what's different without you guessing which field to check.
+- **Step 4 (Traces)** = deeper **Investigate** — follow one request end-to-end through the trace
+  waterfall to confirm the mechanism behind what BubbleUp surfaced.
+- **Step 5 (Verify)** = **Evaluate** — confirm the hypothesis by querying with and without
+  the suspected cause.
+
+The loop only works if your events are wide enough to have dimensions worth diffing. If
+BubbleUp returns nothing useful, the issue is often an instrumentation gap — not a BubbleUp
+failure. Add the missing attributes (see the **otel-instrumentation** skill) and try again.
+
+For the conceptual foundations behind this loop, see the **observability-fundamentals** skill.
 
 ## Investigation Workflow
 
@@ -89,6 +111,14 @@ P99 grouped by deployment.version → BubbleUp comparing new vs old → trace fr
 ### Dependency Failure
 `get_service_map` → P99 on the slow dependency → relational query (`any.service.name`) to measure user impact → trace an affected request
 
+## Stay on the Path
+
+If you find yourself reasoning any of these, follow the workflow anyway:
+- "The cause is obvious, I can skip BubbleUp" — BubbleUp routinely surfaces causes that seem obvious in hindsight but weren't the first guess. It also catches *secondary* causes you'd miss entirely.
+- "I already know it's a deployment issue" — verify with Step 5. Confirmation bias is strongest during incidents. Query with and without the suspected cause.
+- "Traces confirmed it, no need to verify" — a single trace is an anecdote. The verification query proves the pattern holds across all traffic, not just one request.
+- "This is a simple issue, the full workflow is overkill" — the workflow takes minutes; a wrong diagnosis during an incident costs hours.
+
 ## When Results Are Empty or Unclear
 
 - **No results**: Check field names with `find_columns`, expand time range, verify environment/dataset
@@ -103,5 +133,6 @@ P99 grouped by deployment.version → BubbleUp comparing new vs old → trace fr
 - **`${CLAUDE_PLUGIN_ROOT}/skills/production-investigation/references/trace-exploration.md`** — Trace structure, get_trace parameters and view modes, waterfall analysis, span events and links
 
 ### Cross-References
+- For the conceptual foundations of the core analysis loop, see the **observability-fundamentals** skill
 - For query construction patterns, see the **query-patterns** skill
 - For SLO/trigger context during investigations, see the **slos-and-triggers** skill

@@ -1,0 +1,45 @@
+skill: beeline-migration
+skill_file: honeycomb/skills/beeline-migration/SKILL.md
+
+scenarios:
+  - id: phase1-before-phase2
+    name: "Enforce Phase 1 (W3C) before Phase 2 (OTel migration)"
+    prompt: >
+      We have 5 services using Honeycomb Beelines and want to migrate to
+      OpenTelemetry. What's the migration plan? Be specific about the order
+      of operations.
+    with_skill:
+      required_patterns:
+        - "(?i)W3C|trace.?context|propagation"
+        - "(?i)phase.?1.*before.*phase.?2|all.*services.*before|W3C.*first"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)replace|swap|switch.*to.*OTel|install.*opentelemetry"
+
+  - id: leaf-services-first
+    name: "Start migration with leaf services"
+    prompt: >
+      We've enabled W3C propagation across all our Beeline services. Now we
+      want to start migrating to OTel. Which service should we migrate first
+      and why?
+    with_skill:
+      required_patterns:
+        - "(?i)leaf|fewest.depend|no.downstream|edge"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: preserve-service-name
+    name: "Keep OTEL_SERVICE_NAME identical to Beeline service name"
+    prompt: >
+      I'm migrating our payment-service from Beeline to OpenTelemetry.
+      What should I set OTEL_SERVICE_NAME to, and what happens if I get
+      it wrong?
+    with_skill:
+      required_patterns:
+        - "(?i)identical|same|match|keep.*name"
+        - "(?i)dataset|split|different.dataset"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

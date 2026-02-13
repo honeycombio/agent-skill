@@ -1,7 +1,7 @@
 ---
 name: otel-instrumentation
 description: >
-  This skill should be used when the user asks to "instrument my app", "add tracing",
+  Use when the user asks to "instrument my app", "add tracing",
   "set up OpenTelemetry", "configure OTel", "add custom spans", "add attributes to spans",
   "send traces to Honeycomb", "set up OTLP", "configure the OTel SDK",
   "add span events", "add span links", "instrument with OpenTelemetry",
@@ -11,7 +11,7 @@ description: >
   "set up head sampling", "set up tail sampling", "configure the OTel Collector",
   or needs guidance on OpenTelemetry SDK setup, custom instrumentation, or sending data to Honeycomb.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb
@@ -34,106 +34,29 @@ export OTEL_SERVICE_NAME="your-service-name"
 **Important**: `OTEL_SERVICE_NAME` determines the dataset name in Honeycomb. Choose a
 descriptive, stable name (e.g., `checkout-service`, not `my-app`).
 
-## SDK Quick Start by Language
+## SDK Setup
 
-### Go
-```go
-import (
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-    "go.opentelemetry.io/otel/sdk/trace"
-)
-// Setup: otlptracehttp exporter + trace.NewTracerProvider
-// Set env vars: OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS, OTEL_SERVICE_NAME
-```
-
-### Python
-```python
-# pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-# Setup: TracerProvider + BatchSpanProcessor + OTLPSpanExporter
-```
-
-### Node.js
-```javascript
-// npm install @opentelemetry/sdk-node @opentelemetry/exporter-trace-otlp-http
-const { NodeSDK } = require("@opentelemetry/sdk-node");
-const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-http");
-// Setup: new NodeSDK({ traceExporter: new OTLPTraceExporter() })
-```
-
-### Java
-```
-// Use OpenTelemetry Java Agent (auto-instrumentation):
-// java -javaagent:opentelemetry-javaagent.jar -jar your-app.jar
-// Set env vars for OTLP exporter configuration
-```
-
-For complete setup per language (including Ruby, .NET, Rust), consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`.
+The pattern is the same across languages: install the OTel SDK + OTLP exporter, create a
+TracerProvider, and set the three env vars above. For language-specific setup (Go, Python,
+Node.js, Java, Ruby, .NET, Rust), consult
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`.
 
 ## Custom Instrumentation
 
-### Adding Attributes to Existing Spans
+### Adding Attributes to Existing Spans (Highest Impact)
 
-The highest-impact custom instrumentation. No new spans — just add business context:
-
-**Go:**
-```go
-span := trace.SpanFromContext(ctx)
-span.SetAttributes(
-    attribute.String("user.id", userID),
-    attribute.String("tenant.name", tenantName),
-    attribute.Int("cart.item_count", itemCount),
-)
-```
-
-**Python:**
-```python
-span = trace.get_current_span()
-span.set_attribute("user.id", user_id)
-span.set_attribute("tenant.name", tenant_name)
-```
-
-**Node.js:**
-```javascript
-const span = trace.getActiveSpan();
-span.setAttribute("user.id", userId);
-span.setAttribute("tenant.name", tenantName);
-```
+Add business context to auto-instrumented spans — no new spans needed. Get the current
+span from context and call `SetAttributes` (Go), `set_attribute` (Python), or
+`setAttribute` (Node.js) with user, tenant, business, and deployment context.
 
 ### Creating Custom Spans
 
-Wrap important operations for visibility in the trace waterfall:
+Wrap important business operations for visibility in the trace waterfall. Use
+`tracer.Start(ctx, "operation-name")` (Go), `tracer.start_as_current_span("operation-name")`
+(Python), or `tracer.startActiveSpan("operation-name", callback)` (Node.js).
 
-**Go:**
-```go
-tracer := otel.Tracer("my-service")
-ctx, span := tracer.Start(ctx, "process-checkout")
-defer span.End()
-span.SetAttributes(attribute.String("order.id", orderID))
-```
-
-**Python:**
-```python
-tracer = trace.get_tracer("my-service")
-with tracer.start_as_current_span("process-checkout") as span:
-    span.set_attribute("order.id", order_id)
-```
-
-**Node.js:**
-```javascript
-const tracer = opentelemetry.trace.getTracer("my-service");
-tracer.startActiveSpan("process-checkout", (span) => {
-    span.setAttribute("order.id", orderId);
-    // ... do work ...
-    span.end();
-});
-```
-
-For full language-specific examples, consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`.
+For full code examples in all languages, consult
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`.
 
 ## What to Instrument
 
@@ -143,11 +66,20 @@ For full language-specific examples, consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-
 - External HTTP calls (auto-instrumented by most SDKs)
 - Message queue producers/consumers
 
+These are typically auto-instrumented by OTel SDKs and form the skeleton of your traces.
+They give you the basic shape of every request — where time is spent across services,
+databases, and external calls. Without them you have no trace structure at all.
+
 ### Medium Value (Add Next)
 - Business logic operations (checkout, payment, fulfillment)
 - Cache operations (hits, misses, evictions)
 - Authentication and authorization checks
 - Background job execution
+
+These are your business logic. Without custom spans here, you can see that a request was
+slow but not *why* — the trace waterfall has gaps where the important work happens
+invisibly. A 2-second gap between an HTTP handler span and a database span means something
+significant happened, but without a span covering it, you're guessing.
 
 ### Attributes to Add
 - **User context**: `user.id`, `user.role`, `tenant.id`
@@ -155,24 +87,24 @@ For full language-specific examples, consult `${CLAUDE_PLUGIN_ROOT}/skills/otel-
 - **Deployment context**: `deployment.version`, `deployment.environment`
 - **Request context**: Already added by auto-instrumentation (HTTP, gRPC fields)
 
+Attributes are the dimensions BubbleUp uses during investigations. Every `user.id`,
+`tenant.name`, `feature.flag` you add is a new axis BubbleUp can diff on to find what's
+different about outlier requests. Instrument for the questions you'll ask at 3am — "is
+this one user?", "is this the new deploy?", "is this behind a feature flag?" — each of
+those questions requires the corresponding attribute to exist on your spans.
+
+For more on why attributes matter and how they connect to investigation workflows, see
+the **observability-fundamentals** skill.
+
 ## Span Events and Span Links
 
-### Span Events
-Record point-in-time events within a span (no duration):
-```python
-span.add_event("cache_miss", {"cache.key": key})
-span.add_event("retry_attempt", {"attempt": 2, "reason": "timeout"})
-```
-**Use for**: Errors, retries, state changes, milestones within an operation.
+- **Span events**: Record point-in-time occurrences within a span (errors, retries, state
+  changes). Use `span.add_event("event_name", {attributes})`.
+- **Span links**: Connect spans across different trace hierarchies (async processing,
+  fan-out/fan-in, cross-system correlation). Create a `Link` to the related span context.
 
-### Span Links
-Connect spans across different trace hierarchies:
-```python
-from opentelemetry.trace import Link
-link = Link(other_span_context, attributes={"link.reason": "triggered_by"})
-tracer.start_span("process-message", links=[link])
-```
-**Use for**: Async processing, fan-out/fan-in, cross-system correlation.
+See `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`
+for full examples of both patterns.
 
 ## Sampling
 
@@ -194,6 +126,22 @@ Decides after the trace is complete. Keeps interesting traces (errors, slow requ
 - Trace completeness may be affected — missing spans if not all services sample consistently
 - Start with no sampling, then add as needed for cost management
 
+## Logs in Honeycomb
+
+OTel isn't just for traces — it can send logs too. If you have existing log infrastructure,
+the OTel Collector can ingest logs and forward them to Honeycomb as structured events:
+
+- **OTel SDK log bridge**: Most OTel SDKs provide a log bridge that captures logs from
+  your existing logging library (e.g., `slog` in Go, `logging` in Python, `winston`/`pino`
+  in Node.js) and exports them as OTel log records.
+- **OTel Collector `filelog` receiver**: Reads log files, parses them, and exports as OTLP.
+- **Collector log pipeline**: Use the `filelog` or `otlp` receiver → processors for
+  parsing, enriching, and filtering → `otlp` exporter to Honeycomb.
+
+Logs sent through OTel arrive in Honeycomb as structured events with the same query
+capabilities as spans. This is a good migration path if you have existing log pipelines
+but want the analytical power of Honeycomb's query engine and BubbleUp.
+
 ## Naming Conventions
 
 - **Span names**: Describe the operation (`HTTP GET /api/users`, `db.query SELECT`, `process-payment`)
@@ -209,4 +157,5 @@ Decides after the trace is complete. Keeps interesting traces (errors, slow requ
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling
 
 ### Cross-References
+- For the conceptual foundations of why wide events and attributes matter, see the **observability-fundamentals** skill
 - After instrumenting, use the **query-patterns** skill to verify data is arriving in Honeycomb

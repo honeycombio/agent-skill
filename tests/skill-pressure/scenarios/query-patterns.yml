@@ -27,7 +27,8 @@ scenarios:
         - "(?i)any\\.service\\.name|root\\.http\\.route|root\\.name"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)service\\.name|endpoint|route"
 
   - id: bimodal-interpretation
     name: "Identify bimodal distribution from P99/P50 ratio"
@@ -41,4 +42,5 @@ scenarios:
         - "(?i)\\bHEATMAP\\b"
       anti_patterns: []
     without_skill:
-      expected_patterns: []
+      expected_patterns:
+        - "(?i)outlier|tail|slow"

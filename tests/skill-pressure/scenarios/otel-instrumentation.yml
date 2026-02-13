@@ -1,0 +1,45 @@
+skill: otel-instrumentation
+skill_file: honeycomb/skills/otel-instrumentation/SKILL.md
+
+scenarios:
+  - id: attributes-before-spans
+    name: "Prioritize adding attributes over creating new spans"
+    prompt: >
+      I just set up OpenTelemetry auto-instrumentation on my checkout service.
+      What custom instrumentation should I add first? Be specific about what
+      to prioritize and why.
+    with_skill:
+      required_patterns:
+        - "(?i)attribute|set.?attribute|SetAttributes"
+        - "(?i)user\\.id|tenant|business.context"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)new span|create.*span|custom span|start.*span"
+
+  - id: service-name-matters
+    name: "Explain OTEL_SERVICE_NAME determines dataset name"
+    prompt: >
+      I'm configuring OpenTelemetry to send traces to Honeycomb. What
+      environment variables do I need and are there any gotchas I should
+      know about?
+    with_skill:
+      required_patterns:
+        - "(?i)OTEL_SERVICE_NAME"
+        - "(?i)dataset|descriptive|stable"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: instrumentation-for-bubbleup
+    name: "Connect instrumentation decisions to BubbleUp debugging value"
+    prompt: >
+      Why should I add user.id and deployment.version as span attributes?
+      I already have auto-instrumentation capturing HTTP and DB spans.
+    with_skill:
+      required_patterns:
+        - "(?i)bubbleup|bubble.?up"
+        - "(?i)3.?am|incident|investigation|debug"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

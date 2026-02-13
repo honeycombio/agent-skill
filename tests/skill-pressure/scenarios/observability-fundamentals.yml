@@ -1,0 +1,45 @@
+skill: observability-fundamentals
+skill_file: honeycomb/skills/observability-fundamentals/SKILL.md
+
+scenarios:
+  - id: wide-events-over-metrics
+    name: "Recommend wide structured events over metrics for observability"
+    prompt: >
+      My team is debating whether to use Prometheus metrics or structured
+      events for our new microservices. What approach should we take for
+      observability and why?
+    with_skill:
+      required_patterns:
+        - "(?i)wide.*event|structured.*event|high.cardinality"
+        - "(?i)dimension|attribute|context"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)counter|gauge|histogram|time.series|metric"
+
+  - id: cardinality-is-valuable
+    name: "High cardinality fields are valuable, not expensive"
+    prompt: >
+      Should I add user.id as a label on my traces? It has millions of
+      unique values. Won't that cause cardinality problems?
+    with_skill:
+      required_patterns:
+        - "(?i)valuable|useful|important|good|want"
+        - "(?i)bubbleup|bubble.?up|query.time|group.by"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)careful|expensive|cost|explosion|consider"
+
+  - id: core-analysis-loop
+    name: "Describe the core analysis loop"
+    prompt: >
+      How should I approach debugging a production issue in Honeycomb?
+      Describe the mental model, not specific tool calls.
+    with_skill:
+      required_patterns:
+        - "(?i)define|visualize|investigate|evaluate"
+        - "(?i)loop|cycle|iterative"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

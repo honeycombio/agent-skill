@@ -4,8 +4,8 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 
 ## What's included
 
-- **5 skills** — query patterns, production investigation, SLOs & triggers, OpenTelemetry instrumentation, Beeline migration
-- **1 agent** — `honeycomb-investigator` for autonomous multi-step production debugging (Claude Code only)
+- **6 skills** — observability fundamentals, query patterns, production investigation, SLOs & triggers, OpenTelemetry instrumentation, Beeline migration
+- **2 agents** — `honeycomb-investigator` for autonomous multi-step production debugging, `instrumentation-advisor` for codebase-to-Honeycomb gap analysis (Claude Code only)
 - **1 command** — `/honeycomb-setup` for interactive MCP server configuration (Claude Code only)
 
 ## Install

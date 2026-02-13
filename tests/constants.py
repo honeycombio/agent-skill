@@ -26,7 +26,7 @@ OPS_REQUIRING_COLUMN = frozenset({
 # Ops that MUST NOT have a column
 OPS_FORBIDDING_COLUMN = frozenset({"CONCURRENCY"})
 
-# The 5 required skill directories
+# The required skill directories
 REQUIRED_SKILLS = [
     "query-patterns",
     "production-investigation",
@@ -34,6 +34,7 @@ REQUIRED_SKILLS = [
     "otel-instrumentation",
     "beeline-migration",
     "observability-fundamentals",
+    "otel-migration",
 ]
 
 # MCP tool categories for cross-referencing

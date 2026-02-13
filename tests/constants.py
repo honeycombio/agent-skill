@@ -33,6 +33,7 @@ REQUIRED_SKILLS = [
     "slos-and-triggers",
     "otel-instrumentation",
     "beeline-migration",
+    "observability-fundamentals",
 ]
 
 # MCP tool categories for cross-referencing

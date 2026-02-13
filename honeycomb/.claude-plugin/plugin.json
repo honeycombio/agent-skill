@@ -1,6 +1,6 @@
 {
   "name": "honeycomb",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Skills, agents, and workflows for Honeycomb observability — query patterns, production investigations, SLOs, OpenTelemetry instrumentation, and Beeline migration. Designed to complement the Honeycomb MCP server.",
   "author": {
     "name": "Honeycomb",
@@ -8,7 +8,7 @@
   },
   "homepage": "https://docs.honeycomb.io/integrations/mcp/",
   "repository": "https://github.com/honeycombio/agent-skill",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "keywords": [
     "honeycomb",
     "observability",

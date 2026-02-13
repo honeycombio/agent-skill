@@ -14,7 +14,7 @@ description: >
   "view service map", "health check", "SLO burning",
   or any request to investigate or debug production problems.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Honeycomb Production Investigation

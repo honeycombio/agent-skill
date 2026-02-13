@@ -9,7 +9,7 @@ description: >
   "W3C propagation", "incremental migration to OpenTelemetry",
   or needs guidance on migrating from Honeycomb Beelines to OpenTelemetry SDKs.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Beeline to OpenTelemetry Migration

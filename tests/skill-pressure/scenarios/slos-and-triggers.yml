@@ -1,0 +1,40 @@
+skill: slos-and-triggers
+skill_file: honeycomb/skills/slos-and-triggers/SKILL.md
+
+scenarios:
+  - id: budget-interpretation
+    name: "Interpret low SLO budget and recommend action"
+    prompt: >
+      Our checkout SLO has 8% error budget remaining. What does this mean
+      and what should we do about it?
+    with_skill:
+      required_patterns:
+        - "(?i)freeze|halt|stop|pause.*deploy"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: zero-compliance
+    name: "Identify misconfigured SLI from zero compliance"
+    prompt: >
+      Our SLO compliance is showing 0%. Is this a real production problem or
+      something else? What would you check?
+    with_skill:
+      required_patterns:
+        - "(?i)misconfigur|wrong (column|field)|inverted|SLI.*(definition|config|setup|wrong|check)"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: trigger-design
+    name: "Prefer COUNT-based triggers over P99"
+    prompt: >
+      I want to set up a Honeycomb trigger to alert when checkout requests are
+      slow. What's the best approach? Be specific about the trigger configuration.
+    with_skill:
+      required_patterns:
+        - "(?i)COUNT.*WHERE|COUNT.*duration|count.*threshold"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)\\bP99\\b|\\bP95\\b|percentile"

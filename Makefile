@@ -1,4 +1,4 @@
-.PHONY: test test-structural test-scenarios test-scenarios-full test-plugin-only test-single test-all test-report install
+.PHONY: test test-structural test-scenarios test-scenarios-full test-plugin-only test-single test-all test-report test-skill-pressure install
 
 PYTHON ?= .venv/bin/python
 
@@ -25,6 +25,10 @@ test-single:
 # Generate HTML comparison report from saved output
 test-report:
 	$(PYTHON) -m tests.scenarios.report
+
+# Skill pressure tests -- fast local skill iteration (MCP for tool descriptions, no queries)
+test-skill-pressure:
+	$(PYTHON) tests/skill-pressure/run.py
 
 test-all: test-structural test-scenarios
 

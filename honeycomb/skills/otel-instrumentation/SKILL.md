@@ -11,7 +11,7 @@ description: >
   "set up head sampling", "set up tail sampling", "configure the OTel Collector",
   or needs guidance on OpenTelemetry SDK setup, custom instrumentation, or sending data to Honeycomb.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb

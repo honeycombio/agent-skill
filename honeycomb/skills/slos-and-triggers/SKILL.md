@@ -14,7 +14,7 @@ description: >
   "SLO is broken", "budget is negative", or any request about service level
   objectives, error budgets, burn rates, or alerting in Honeycomb.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Honeycomb SLOs and Triggers

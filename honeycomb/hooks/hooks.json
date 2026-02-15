@@ -3,11 +3,16 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "mcp__.*__find_columns|mcp__.*__get_dataset_columns",
+        "matcher": "mcp__honeycomb__find_columns",
         "hooks": [
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cache-columns.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/debug-post.sh",
             "timeout": 5
           }
         ]

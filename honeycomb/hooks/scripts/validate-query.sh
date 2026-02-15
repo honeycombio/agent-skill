@@ -17,7 +17,7 @@ input=$(cat)
 env_slug=$(echo "$input" | jq -r '.tool_input.environment_slug // empty')
 dataset_slug=$(echo "$input" | jq -r '.tool_input.dataset_slug // empty')
 session_id=$(echo "$input" | jq -r '.session_id // "default"')
-query_spec=$(echo "$input" | jq -r '.tool_input.query_spec // empty')
+query_spec=$(echo "$input" | jq -c '.tool_input.query_spec // empty')
 
 # Can't validate without these — fail open
 if [[ -z "$env_slug" || -z "$dataset_slug" || -z "$query_spec" ]]; then
@@ -71,13 +71,19 @@ fi
 # ── Check for cached schema ───────────────────────────────────────────
 cache_dir="${TMPDIR:-/tmp}/honeycomb-schema/${session_id}"
 cache_file="${cache_dir}/${env_slug}--${dataset_slug}.txt"
+cache_file_all="${cache_dir}/${env_slug}--_all.txt"
 
+# Try dataset-specific cache first, then cross-dataset cache
 if [[ ! -f "$cache_file" ]]; then
-  # No cache — soft nudge, don't block
-  jq -n --arg dataset "$dataset_slug" '{
-    systemMessage: "Column names for dataset \"\($dataset)\" have not been validated this session. Consider calling find_columns or get_dataset_columns for this dataset first to avoid unknown column errors."
-  }'
-  exit 0
+  if [[ -f "$cache_file_all" ]]; then
+    cache_file="$cache_file_all"
+  else
+    # No cache — soft nudge, don't block
+    jq -n --arg dataset "$dataset_slug" '{
+      systemMessage: "Column names for dataset \"\($dataset)\" have not been validated this session. Consider calling find_columns or get_dataset_columns for this dataset first to avoid unknown column errors."
+    }'
+    exit 0
+  fi
 fi
 
 # ── Validate each column ──────────────────────────────────────────────
@@ -134,9 +140,10 @@ jq -n \
   --arg dataset "$dataset_slug" \
   '{
     hookSpecificOutput: {
-      permissionDecision: "deny"
-    },
-    systemMessage: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall find_columns to discover correct column names before retrying."
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall find_columns to discover correct column names before retrying."
+    }
   }'
 
 exit 0

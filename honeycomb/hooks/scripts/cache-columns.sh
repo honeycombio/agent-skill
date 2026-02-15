@@ -15,11 +15,16 @@ input=$(cat)
 env_slug=$(echo "$input" | jq -r '.tool_input.environment_slug // empty')
 dataset_slug=$(echo "$input" | jq -r '.tool_input.dataset_slug // empty')
 session_id=$(echo "$input" | jq -r '.session_id // "default"')
-tool_result=$(echo "$input" | jq -r '.tool_result // empty')
+tool_result=$(echo "$input" | jq -r '.tool_response[0].text // empty')
 
-# All fields required — fail open if anything is missing
-if [[ -z "$env_slug" || -z "$dataset_slug" || -z "$tool_result" ]]; then
+# Environment and result required — fail open if missing
+if [[ -z "$env_slug" || -z "$tool_result" ]]; then
   exit 0
+fi
+
+# If no dataset specified, use "_all" as a cross-dataset cache
+if [[ -z "$dataset_slug" ]]; then
+  dataset_slug="_all"
 fi
 
 cache_dir="${TMPDIR:-/tmp}/honeycomb-schema/${session_id}"

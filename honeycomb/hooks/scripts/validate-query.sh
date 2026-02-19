@@ -54,14 +54,24 @@ strip_relational_prefix() {
 }
 
 # ── Extract column references from query_spec ─────────────────────────
-# Pulls column names from calculations, filters, breakdowns, and orders.
+# Pulls column names from calculations, filters, breakdowns, and orders,
+# then subtracts query-local names (named calculations, formulas,
+# calculated fields) which are valid references but not dataset columns.
 columns=$(echo "$query_spec" | jq -r '
+  # Names defined within the query itself — not dataset columns
+  (
+    [
+      (.calculations // [] | map(select(.name != null) | .name)),
+      (.formulas // [] | map(select(.name != null) | .name)),
+      (.calculated_fields // [] | map(select(.name != null) | .name))
+    ] | flatten
+  ) as $local_names |
   [
     (.calculations // [] | map(select(.column != null) | .column)),
     (.filters // [] | map(select(.column != null) | .column)),
     (.breakdowns // []),
     (.orders // [] | map(select(.column != null) | .column))
-  ] | flatten | unique | .[]
+  ] | flatten | unique | map(select(. as $c | $local_names | index($c) | not)) | .[]
 ' 2>/dev/null) || exit 0
 
 if [[ -z "$columns" ]]; then

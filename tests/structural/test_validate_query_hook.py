@@ -67,6 +67,15 @@ def _write_cache(cache_dir: str, env_slug: str, dataset_slug: str, columns: list
         f.write("\n".join(sorted(columns)) + "\n")
 
 
+def _write_complete_marker(cache_dir: str, env_slug: str, dataset_slug: str, session_id: str = "test"):
+    """Mark a cache as complete (built from get_dataset_columns, not find_columns)."""
+    schema_dir = os.path.join(cache_dir, "honeycomb-schema", session_id)
+    os.makedirs(schema_dir, exist_ok=True)
+    marker = os.path.join(schema_dir, f"{env_slug}--{dataset_slug}.complete")
+    with open(marker, "w") as f:
+        f.write("get_dataset_columns\n")
+
+
 # ── Fail-open: missing fields ────────────────────────────────────────────
 
 
@@ -141,6 +150,7 @@ class TestDenyUnknownColumns:
     def test_deny_unknown_column(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "filters": [{"column": "htttp.status_code", "op": "=", "value": 200}],
@@ -154,6 +164,7 @@ class TestDenyUnknownColumns:
     def test_deny_includes_fuzzy_suggestions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route", "http.method"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "breakdowns": ["http.staus_code"],
@@ -165,6 +176,7 @@ class TestDenyUnknownColumns:
     def test_deny_multiple_unknown_columns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "AVG", "column": "latencyy"}],
                 "breakdowns": ["userr.id"],
@@ -241,6 +253,7 @@ class TestRelationalPrefixes:
     def test_prefixed_unknown_column_denied(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "breakdowns": ["any.nonexistent.column"],
@@ -271,6 +284,7 @@ class TestAllDatasetFallback:
             # _all has the column, dataset-specific does not
             _write_cache(tmpdir, "prod", "_all", ["only.in.all"])
             _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "breakdowns": ["only.in.all"],
@@ -289,6 +303,7 @@ class TestColumnExtraction:
     def test_column_from_calculations(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["known.col"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "AVG", "column": "unknown.calc.col"}],
             })
@@ -299,6 +314,7 @@ class TestColumnExtraction:
     def test_column_from_filters(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["known.col"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "filters": [{"column": "unknown.filter.col", "op": "=", "value": "x"}],
@@ -310,6 +326,7 @@ class TestColumnExtraction:
     def test_column_from_breakdowns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["known.col"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "breakdowns": ["unknown.breakdown.col"],
@@ -321,6 +338,7 @@ class TestColumnExtraction:
     def test_column_from_orders(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["known.col"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "COUNT"}],
                 "orders": [{"column": "unknown.order.col", "op": "COUNT"}],
@@ -383,6 +401,7 @@ class TestNamedCalculationsInOrders:
         """Real unknown columns should still be denied even when named calcs are present."""
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [
                     {"op": "COUNT", "name": "total"},
@@ -461,6 +480,7 @@ class TestCalculatedFields:
         """Real unknown columns should still be denied alongside calculated fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["error"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
             data = _make_input(query_spec={
                 "calculations": [{"op": "AVG", "column": "bogus.column"}],
                 "calculated_fields": [
@@ -473,3 +493,116 @@ class TestCalculatedFields:
             reason = result["hookSpecificOutput"]["permissionDecisionReason"]
             assert "bogus.column" in reason
             assert "error_pct" not in reason, "Calculated field 'error_pct' should not appear in deny reason"
+
+
+# ── Bug 1: Partial cache should soft-nudge, not hard-deny ────────────
+
+
+class TestPartialCacheNudge:
+    """When the cache was built from find_columns (no .complete marker), unknown
+    columns should get a soft systemMessage nudge instead of a hard deny.
+
+    This prevents false denials when find_columns only returned its top-50
+    results and the queried column exists but wasn't in those results.
+    See: honeycomb-plugin-validation-bug.md Bug 1.
+    """
+
+    def test_partial_cache_unknown_column_nudges(self):
+        """Unknown column in partial cache → soft nudge, not hard deny."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
+            # No _write_complete_marker — this is a partial cache
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["app.user_id"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None, "Should produce output for unknown column"
+            assert "systemMessage" in result, (
+                f"Partial cache should soft-nudge, not hard-deny. Got: {result}"
+            )
+            assert "hookSpecificOutput" not in result, (
+                f"Partial cache should not produce a deny decision. Got: {result}"
+            )
+
+    def test_partial_cache_known_column_passes(self):
+        """Known column in partial cache → silent pass (no change from before)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["http.route"],
+            })
+            assert _run_hook(data, cache_dir=tmpdir) is None
+
+    def test_partial_cache_nudge_includes_column_names(self):
+        """The nudge message should mention which columns couldn't be verified."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["app.user_id", "http.status_code"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            msg = result["systemMessage"]
+            assert "app.user_id" in msg, "Nudge should mention the unverified column"
+
+    def test_partial_cache_nudge_includes_suggestions(self):
+        """Even in nudge mode, fuzzy suggestions help catch typos."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route", "http.method"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["http.staus_code"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            msg = result["systemMessage"]
+            assert "http.status_code" in msg, "Nudge should include fuzzy suggestion for typo"
+
+    def test_complete_cache_still_denies(self):
+        """With .complete marker, unknown columns are still hard-denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["app.user_id"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            assert "hookSpecificOutput" in result
+            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def test_upgraded_cache_denies_after_get_dataset_columns(self):
+        """If find_columns ran first, then get_dataset_columns added the marker,
+        the cache should be treated as complete → hard deny."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Simulate: find_columns built partial cache
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code"])
+            # Then get_dataset_columns added more columns + marker
+            _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route", "http.method"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["nonexistent.column"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def test_partial_all_cache_nudges(self):
+        """Partial _all cache should also soft-nudge, not hard-deny."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "_all", ["http.route", "http.status_code"])
+            # No complete marker on _all
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "breakdowns": ["app.user_id"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            assert "systemMessage" in result, (
+                f"Partial _all cache should soft-nudge. Got: {result}"
+            )

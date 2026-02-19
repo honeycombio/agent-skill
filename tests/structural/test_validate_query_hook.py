@@ -328,3 +328,148 @@ class TestColumnExtraction:
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
             assert "unknown.order.col" in result["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+# ── Bug 2: Named calculations and formulas in orders ────────────────────
+
+
+class TestNamedCalculationsInOrders:
+    """Orders can reference named calculations or formula names, not just columns.
+
+    The hook should recognize these as query-local names and skip validation.
+    See: honeycomb-plugin-validation-bug.md Bug 2.
+    """
+
+    def test_order_by_named_calculation(self):
+        """Ordering by a named calculation should not be denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["error", "http.route"])
+            data = _make_input(query_spec={
+                "calculations": [
+                    {"op": "COUNT", "name": "total"},
+                    {"op": "COUNT", "name": "errors"},
+                ],
+                "breakdowns": ["http.route"],
+                "orders": [{"column": "total", "order": "descending"}],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is None, (
+                f"Named calculation 'total' should not be validated as a column. "
+                f"Got: {result}"
+            )
+
+    def test_order_by_formula_name(self):
+        """Ordering by a formula name should not be denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["error", "http.route"])
+            data = _make_input(query_spec={
+                "calculations": [
+                    {"op": "COUNT", "name": "total"},
+                    {"op": "COUNT", "name": "errors"},
+                ],
+                "formulas": [
+                    {"name": "error_rate", "expression": "$errors / $total * 100"},
+                ],
+                "breakdowns": ["http.route"],
+                "orders": [{"column": "error_rate", "order": "descending"}],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is None, (
+                f"Formula name 'error_rate' should not be validated as a column. "
+                f"Got: {result}"
+            )
+
+    def test_mixed_real_columns_and_named_calcs(self):
+        """Real unknown columns should still be denied even when named calcs are present."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
+            data = _make_input(query_spec={
+                "calculations": [
+                    {"op": "COUNT", "name": "total"},
+                    {"op": "AVG", "column": "nonexistent.col"},
+                ],
+                "orders": [{"column": "total", "order": "descending"}],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "nonexistent.col" in reason
+            assert "total" not in reason, "Named calculation 'total' should not appear in deny reason"
+
+
+# ── Bug 3: Calculated fields output names ────────────────────────────────
+
+
+class TestCalculatedFields:
+    """Calculated fields define derived columns that can be used elsewhere in the query.
+
+    The hook should recognize calculated_fields[].name as query-local names.
+    See: honeycomb-plugin-validation-bug.md Bug 3.
+    """
+
+    def test_calculated_field_name_in_breakdown(self):
+        """A calculated field name used in breakdowns should not be denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["error", "http.status_code"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "calculated_fields": [
+                    {"name": "error_pct", "expression": "MUL(IF($error, 1, 0), 100)"},
+                ],
+                "breakdowns": ["error_pct"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is None, (
+                f"Calculated field name 'error_pct' should not be validated as a column. "
+                f"Got: {result}"
+            )
+
+    def test_calculated_field_name_in_filter(self):
+        """A calculated field name used in filters should not be denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["error"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "COUNT"}],
+                "calculated_fields": [
+                    {"name": "is_error", "expression": "IF($error, 1, 0)"},
+                ],
+                "filters": [{"column": "is_error", "op": "=", "value": 1}],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is None, (
+                f"Calculated field name 'is_error' should not be validated as a column. "
+                f"Got: {result}"
+            )
+
+    def test_calculated_field_name_in_calculation(self):
+        """A calculated field name used as a calculation column should not be denied."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["duration_ms"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "AVG", "column": "latency_bucket"}],
+                "calculated_fields": [
+                    {"name": "latency_bucket", "expression": "DIV($duration_ms, 100)"},
+                ],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is None, (
+                f"Calculated field name 'latency_bucket' should not be validated as a column. "
+                f"Got: {result}"
+            )
+
+    def test_real_unknown_column_still_denied_with_calculated_fields(self):
+        """Real unknown columns should still be denied alongside calculated fields."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["error"])
+            data = _make_input(query_spec={
+                "calculations": [{"op": "AVG", "column": "bogus.column"}],
+                "calculated_fields": [
+                    {"name": "error_pct", "expression": "MUL(IF($error, 1, 0), 100)"},
+                ],
+                "breakdowns": ["error_pct"],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "bogus.column" in reason
+            assert "error_pct" not in reason, "Calculated field 'error_pct' should not appear in deny reason"

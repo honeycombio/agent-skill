@@ -49,11 +49,13 @@ Look at the code and docs to learn more about the service or problem or feature 
 
 ### Gather candidate queries
 
-#### Time frame
+#### Time range
 
 The default timeframe is 2 hours. If this is a board for a service, that's reasonable. So is 8 hours or 24 hours for a lower-volume service.
 
 If the board is for a feature, where we're looking at usage trends, then 7 days is better.
+
+Whatever range you choose, keep it consistent for all graphs!
 
 #### When to Use Each Aggregation
 
@@ -192,6 +194,12 @@ List these out for the user, along with your reasons for including them, while y
 - stat — Single value display (stat panel)
 - categorical_bar — Categorical bar chart
 - pie — Pie chart
+
+#### Secret trick
+
+If you want to display the same data in two different formats, you need to get past Honeycomb's "no duplicate queries on a board" restriction. This is easy enough: add 'service.name exists' to the filter on one of the queries. Something that's true for every event, so that the results are the same, but the query is technically different.
+
+Be sure to keep the timeframe consistent, because we want the data to say the same thing in both places.
 
 #### Display Styles
 

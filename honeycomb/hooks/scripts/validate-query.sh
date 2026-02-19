@@ -96,6 +96,16 @@ if [[ ! -f "$cache_file" ]]; then
   fi
 fi
 
+# ── Check cache completeness ─────────────────────────────────────────
+# A .complete marker means the cache was built from get_dataset_columns
+# (which returns ALL columns). Without it, the cache is partial (from
+# find_columns top-50) and we should soft-nudge instead of hard-deny.
+complete_marker="${cache_file%.txt}.complete"
+cache_is_complete=false
+if [[ -f "$complete_marker" ]]; then
+  cache_is_complete=true
+fi
+
 # ── Validate each column ──────────────────────────────────────────────
 unknown=()
 suggestions=()
@@ -140,20 +150,32 @@ if [[ ${#unknown[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# ── Build deny response ──────────────────────────────────────────────
+# ── Build response ───────────────────────────────────────────────────
 unknown_str=$(printf '%s, ' "${unknown[@]}" | sed 's/, $//')
 suggestion_str=$(printf '%s\n' "${suggestions[@]}")
 
-jq -n \
-  --arg cols "$unknown_str" \
-  --arg hints "$suggestion_str" \
-  --arg dataset "$dataset_slug" \
-  '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall find_columns to discover correct column names before retrying."
-    }
-  }'
+if [[ "$cache_is_complete" == "true" ]]; then
+  # Complete cache (from get_dataset_columns) — hard deny
+  jq -n \
+    --arg cols "$unknown_str" \
+    --arg hints "$suggestion_str" \
+    --arg dataset "$dataset_slug" \
+    '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall find_columns to discover correct column names before retrying."
+      }
+    }'
+else
+  # Partial cache (from find_columns) — soft nudge
+  jq -n \
+    --arg cols "$unknown_str" \
+    --arg hints "$suggestion_str" \
+    --arg dataset "$dataset_slug" \
+    '{
+      systemMessage: "Column names not yet verified for dataset \"\($dataset)\": [\($cols)]. The schema cache is incomplete (built from find_columns, not get_dataset_columns). These columns may exist but were not in the top results.\nSuggestions:\n\($hints)\nConsider calling get_dataset_columns to build a complete cache, or verify these column names are correct."
+    }'
+fi
 
 exit 0

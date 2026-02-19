@@ -164,7 +164,7 @@ if [[ "$cache_is_complete" == "true" ]]; then
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall find_columns to discover correct column names before retrying."
+        permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall get_dataset_columns to refresh the schema cache, or find_columns to search for correct column names."
       }
     }'
 else

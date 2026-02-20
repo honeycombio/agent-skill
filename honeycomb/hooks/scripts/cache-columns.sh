@@ -15,6 +15,7 @@ input=$(cat)
 env_slug=$(echo "$input" | jq -r '.tool_input.environment_slug // empty')
 dataset_slug=$(echo "$input" | jq -r '.tool_input.dataset_slug // empty')
 session_id=$(echo "$input" | jq -r '.session_id // "default"')
+tool_name=$(echo "$input" | jq -r '.tool_name // empty')
 tool_result=$(echo "$input" | jq -r '.tool_response[0].text // empty')
 
 # Environment and result required — fail open if missing
@@ -50,6 +51,13 @@ echo "$tool_result" \
 # Deduplicate
 if [[ -f "$cache_file" ]]; then
   sort -u "$cache_file" -o "$cache_file"
+fi
+
+# Mark cache as complete when built from get_dataset_columns (returns ALL columns).
+# find_columns only returns top-50 results, so its cache is inherently partial.
+# validate-query.sh uses this marker to decide hard-deny vs soft-nudge.
+if [[ "$tool_name" == *get_dataset_columns* ]]; then
+  touch "${cache_file%.txt}.complete"
 fi
 
 exit 0

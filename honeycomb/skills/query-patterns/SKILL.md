@@ -16,7 +16,7 @@ description: >
   "download raw results", or any request to query, visualize, or interpret
   Honeycomb data.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
 ---
 
 # Honeycomb Query Patterns
@@ -54,14 +54,32 @@ Use relational prefixes to ask cross-span questions within a trace:
 - **"What's different about errored traces?"**: Filter with `any.error = true`, group by `root.name` to see which entry points have errors somewhere in their trace tree.
 - **Exclude noise**: `none.service.name = "health-check"` removes traces containing health checks.
 
-## Calculated Fields: When to Use
+## Calculated Fields
 
-Use inline calculated fields to create boolean columns for filtering and grouping:
-- **Error classification**: `GTE($http.status_code, 500)` for server errors vs `GTE($http.status_code, 400)` for all errors
-- **Latency bucketing**: `BUCKET($duration_ms, 100)` to create 100ms buckets
-- **Business logic**: `EQUALS($checkout.status, "completed")` for success rate
+Calculated fields are per-event expressions evaluated at query time. They transform,
+classify, and combine existing fields without re-instrumenting code.
 
-These are expression functions for calculated fields only — don't confuse with filter operators (which use `=`, `>=`, etc.).
+**Three scopes** — choose the narrowest that fits the need:
+- **Query-scoped** (not saved): exploratory, one-off analysis
+- **Dataset-level** (saved): reusable within one service's dataset
+- **Environment-level** (saved): reusable across all datasets (e.g., `error_pct`)
+
+**Common patterns:**
+- **Error rate**: `MUL(IF($error, 1, 0), 100)` → use `AVG(error_pct)` to get percentage
+- **Status classification**: `IF(GTE($http.status_code, 500), "5xx", GTE($http.status_code, 400), "4xx", "ok")`
+- **Latency bucketing**: `BUCKET($duration_ms, 500, 0, 3000)`
+- **Prefix routing**: `IF(STARTS_WITH($url, "/admin"), "admin", STARTS_WITH($url, "/api"), "api", "other")`
+- **Exact-match classification**: use `SWITCH` instead of `IF(EQUALS(...))` chains — same expression, more efficient
+
+**Key guardrails:**
+- **Don't create presentational (alias-only) fields** — a field that just renames another field adds no analytical value and clutters the schema. Only save a calculated field when it does real computation (classification, extraction, math).
+- **Avoid regex on large/complex fields** — running `REG_MATCH`, `REG_VALUE`, or `REG_COUNT` on `exception.stacktrace`, `db.statement`, or full log lines can be very slow. Check whether a more targeted OTel field exists first (`exception.type`, `exception.message`, `db.operation`). If you must regex a long field, guard it with a `CONTAINS` check first.
+- **`EQUALS` has strict type matching** — `EQUALS($http.status_code, 200)` silently returns false if the field is stored as a string. Use `find_columns` to verify the field type before comparing.
+- **`FORMAT_TIME` is expensive** — avoid in high-volume queries.
+- **Save query-scoped, not dataset-level, for one-off work** — saved fields show up in everyone's schema.
+
+For full syntax, operator reference, and extended anti-pattern examples, consult
+`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/calculated-fields.md`.
 
 ## Always Check
 
@@ -92,3 +110,4 @@ Key interpretation rules:
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/relational-fields.md`** — Detailed relational field guide with cross-service patterns
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/query-examples.md`** — Extensive query cookbook organized by use case
 - **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/result-interpretation.md`** — Guide to interpreting query results, raw JSON access, and statistical heuristics
+- **`${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/calculated-fields.md`** — Calculated field syntax, full operator reference, common patterns, and anti-patterns (presentational fields, expensive string ops, type mismatches)

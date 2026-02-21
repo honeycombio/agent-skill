@@ -24,9 +24,11 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Stat row** — three stats side-by-side at the top:
 ```json
-{ "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
+[
+  { "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
+]
 ```
 
 **Full-width heatmap**:
@@ -36,14 +38,18 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Two graphs side-by-side**:
 ```json
-{ "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
-{ "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
+[
+  { "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
+  { "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
+]
 ```
 
 **SLO widget beside a summary graph**:
 ```json
-{ "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...",   "size": { "width": 8 } }
+[
+  { "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...",   "size": { "width": 8 } }
+]
 ```
 
 There's no one right layout. Design it to tell a story — context at the top, most important signals next, breakdowns below.

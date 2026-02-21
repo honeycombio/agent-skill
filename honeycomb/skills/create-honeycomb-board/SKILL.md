@@ -148,8 +148,6 @@ Call `create_board` with a `panels` array. Every panel requires a `type` field â
 }
 ```
 
-# <<<<<<< HEAD
-
 If there are plenty of root spans, then you can use this as a way to count requests.
 
 For downstream services, the right query (in OpenTelemetry) is:
@@ -367,8 +365,6 @@ Call `create_board` with:
   - `size`: `{ width: 1-12, height: N }` â€” grid wraps at 12 columns
 - `tags` array for organization (format: `key:value`)
 - `preset_filters` array for filter dropdowns (max 5)
-
-> > > > > > > add-create-honeycomb-board-skill
 
 ### Follow up
 

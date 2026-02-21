@@ -24,11 +24,9 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Stat row** — three stats side-by-side at the top:
 ```json
-[
-  { "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
-  { "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
-  { "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
-]
+{ "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
+{ "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
+{ "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
 ```
 
 **Full-width heatmap**:
@@ -38,21 +36,68 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Two graphs side-by-side**:
 ```json
-[
-  { "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
-  { "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
-]
+{ "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
+{ "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
 ```
 
 **SLO widget beside a summary graph**:
 ```json
-[
-  { "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
-  { "type": "query", "id": "QR-...",   "size": { "width": 8 } }
-]
+{ "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
+{ "type": "query", "id": "QR-...",   "size": { "width": 8 } }
 ```
 
 There's no one right layout. Design it to tell a story — context at the top, most important signals next, breakdowns below.
+
+### Recommended layout from top to bottom
+
+#### Row 1: Introduction — text panel + primary SLO
+
+Place a text panel (width 8). If there is a primary SLO, place it alongside (width 4). The text panel should describe the board's purpose, link to relevant code or docs, and note what to watch for.
+
+```
+┌──── text (8) ─────┬── SLO (4) ──┐
+```
+
+#### Row 2: Other SLOs at 1/3 width
+
+If there are additional relevant SLOs, place them in a row at width 4 each (up to 3 across).
+
+```
+├── SLO (4) ──┬── SLO (4) ──┬── SLO (4) ──┤
+```
+
+#### Row 3: Stat panels at 1/4 width
+
+Key single-number metrics (P95 latency, error rate %, request count, unique users) work well as `chart_type: "stat"` at width 3, fitting 4 across.
+
+```
+├─ stat (3) ─┬─ stat (3) ─┬─ stat (3) ─┬─ stat (3) ─┤
+```
+
+#### Remaining rows: Queries with explanatory text
+
+For the main query panels, use width 6 (two across) or width 12 (full width).
+
+For particularly interesting or non-obvious queries, add a narrow text panel (width 3-4) next to the query (width 8-9) on the same row. Use the text panel to explain what to look for, what normal looks like, or what actions to take if values change.
+
+```
+├── text (3) ──┬──── query (9) ────────────┤
+├──── query (6) ─────┬──── query (6) ──────┤
+```
+
+Not every query needs an explanatory text panel — just the ones where the meaning isn't obvious from the name alone, or where there's useful context about thresholds or expected behavior.
+
+### Height tips
+
+- Keep heights consistent within a row for visual alignment
+- SLO panels work well at height 4
+- Stat panels work well at height 4
+- Simple chart-only query panels work at height 4
+- Query panels with two graphs and `display_style: "chart"` need height 7
+- For queries with `display_style: "combo"`, if they have no breakdowns, add 1 to height.
+- For queries with `display_style: "combo"` and a breakdown, add 3-5 height units, depending on how many rows the table needs.
+- Text panels for row headers work at height 1; explanatory text panels next to queries should match the query panel height
+- Heatmap panels work at height 5
 
 ## Chart types
 

@@ -140,11 +140,13 @@ Use `"combo"` when there's a GROUP BY / breakdown — you want to see both the g
 `preset_filters` creates interactive dropdown controls on the board — viewers can filter all graphs by a column value without editing queries. Maximum 5.
 
 ```json
-"preset_filters": [
-  { "column": "http.route",       "alias": "Route" },
-  { "column": "app.region",       "alias": "Region" },
-  { "column": "app.account_tier", "alias": "Account Tier" }
-]
+{
+  "preset_filters": [
+    { "column": "http.route",       "alias": "Route" },
+    { "column": "app.region",       "alias": "Region" },
+    { "column": "app.account_tier", "alias": "Account Tier" }
+  ]
+}
 ```
 
 Good candidates: route, region, account tier, deployment version, user type. Especially useful for boards shared across teams or used during incidents. If the service has meaningful segmentation columns, suggest preset filters.
@@ -152,7 +154,7 @@ Good candidates: route, region, account tier, deployment version, user type. Esp
 ## Tags
 
 ```json
-"tags": ["team:platform", "tier:critical"]
+{ "tags": ["team:platform", "tier:critical"] }
 ```
 
 Use `list_boards` to see existing tags and follow those formats.

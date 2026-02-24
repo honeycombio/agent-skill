@@ -1,10 +1,10 @@
 ---
 name: create-honeycomb-board
 description: >
-  Create a board (dashboard) in Honeycomb with queries and SLOs.
+  Design and then create a board (dashboard) in Honeycomb with queries and SLOs.
   Use when asked to "create a board", "make a board", "build a dashboard",
   "create a Honeycomb board", "make a dashboard in Honeycomb",
-  "set up a board", or any request to create or build a Honeycomb board or dashboard.
+  "set up a board", or any request to design and create or build a Honeycomb board or dashboard.
 allowed_tools:
   - mcp__honeycomb__create_board
   - mcp__honeycomb__run_query
@@ -29,17 +29,11 @@ allowed_tools:
 Build a board (dashboard) in Honeycomb using the `create_board` MCP tool.
 There is no update tool — define it well before creating.
 
-A good board typically includes:
-1. **Text Panel** — Service context, links, what to watch
-1. **SLOs** — Health at a glance
-1. **RED Metrics** — Rate, Errors, Duration
-1. **Business Metrics** — Revenue, users, conversions
-1. **Breakdown Views** — By route/operation/status
-1. **Infrastructure Metrics** — CPU, memory, network
-1. **Dependencies** — Downstream service health
+When building a board, think about the purpose and time frame involved. Some examples:
 
-See [board-queries.md](references/board-queries.md) for what queries to include and how to write them.
-See [board-layout.md](references/board-layout.md) for panel types, the grid system, sizing, and layout examples.
+- a board for a service. This should be timeless, looking at the service's health, performance, and business metrics. Do not do any problem diagnosis or investigation when building this board. Do not express opinions or summarize graphs in text panels. The board should be a representation of the service's health at whatever moment someone looks at it.
+- a board for a feature. This should look at the feature's usage trends, and its impact on the business. This board would have a time frame of 7 days, and would not include any infrastructure metrics or service dependencies.
+- a board for a problem. This might be created during an incident, or afterward. This one would have a time frame specific to the incident. It would include investigations, and your opinions about what is happening. Patterns of what to look for are appropriate here.
 
 ## Workflow
 
@@ -50,6 +44,14 @@ Use `get_slos` to list SLOs in the environment. Relevant SLOs will go on the boa
 ### Gather descriptive context
 
 Look at the code and docs (using Read/Grep/Glob) to understand the service or feature. Use this to write a text panel. Link to GitHub or documentation if you can.
+
+This will vary greatly depending on the purpose of the board.
+
+Description of the application and link to the code - great for a service board.
+
+What is the feature, and what business impact does it have? - great for a feature board.
+
+What is the problem, and what is the impact? What patterns do we see? - great for a problem board.
 
 ### Build candidate queries
 
@@ -81,12 +83,13 @@ Consider `preset_filters` if viewers will want to slice the board interactively 
 
 ### Show the proposed board to the user — always, without exception
 
-Display:
-- The text panel content
-- SLOs to include
-- Each query: name, description, chart type, display style, example results
+For each panel, display:
+
+- **Text panels**: Show the **full markdown content** that will appear on the board. The user needs to review the exact wording before creation since boards can't be updated.
+- **SLO panels**: Show the SLO name, target, and current compliance.
+- **Query panels**: Show the name, description, chart type, display style, and a **link to the query** (the `query_url` from the run_query result metadata). Briefly describe what the results showed.
 - Planned layout (sizing and groupings)
-- Tags
+- **Tags**: Display the tags you plan to add to the board.
 - Any preset filters
 
 End with: "Here's the board I'd create. Shall I go ahead?"
@@ -140,9 +143,7 @@ Call `create_board` with a `panels` array. Every panel requires a `type` field �
       "size": { "width": 12, "height": 3 }
     }
   ],
-  "preset_filters": [
-    { "column": "http.route", "alias": "Route" }
-  ],
+  "preset_filters": [{ "column": "http.route", "alias": "Route" }],
   "tags": ["team:platform", "tier:critical"]
 }
 ```

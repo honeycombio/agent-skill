@@ -2,19 +2,15 @@
 name: production-investigation
 description: >
   Use when investigating production issues in Honeycomb — provides the structured
-  sequence of tool calls (context priming, broad query, BubbleUp, filtered
-  drill-down, trace analysis) and how to chain results between steps using
-  query_run_pk, trace IDs, and BubbleUp differentiators. Without it, queries
-  work but miss the systematic narrowing that identifies root causes.
-  Trigger phrases: "investigate a production issue", "debug a latency spike",
-  "find root cause", "use BubbleUp", "analyze traces", "find what changed",
-  "debug an outage", "why is my API slow", "why are requests failing",
-  "what's causing errors", "something is wrong with", "users are complaining",
-  "latency is spiking", "errors are increasing", "check service dependencies",
-  "view service map", "health check", "SLO burning",
+  sequence of tool calls (context priming, broad query, BubbleUp, trace analysis,
+  verification) and how to chain results between steps. Without it, queries work
+  but miss the systematic narrowing that identifies root causes.
+  Trigger phrases: "investigate production issue", "debug latency spike",
+  "find root cause", "use BubbleUp", "analyze traces", "debug an outage",
+  "why is my API slow", "errors are increasing", "health check", "SLO burning",
   or any request to investigate or debug production problems.
 metadata:
-  version: "1.4.0"
+  version: "2.0.0"
 ---
 
 # Honeycomb Production Investigation
@@ -25,25 +21,10 @@ own parameters — this skill focuses on the *sequence* of tool calls and how to
 
 ## The Core Analysis Loop
 
-This investigation workflow implements Honeycomb's core analysis loop:
-**Define -> Visualize -> Investigate -> Evaluate**. Each step below maps to a phase
-of the loop:
-
-- **Step 1 (Orient)** = **Define** — frame the question using SLOs, triggers, and prior queries.
-- **Step 2 (Characterize)** = **Visualize** — run a broad query to see the shape of the problem.
-- **Step 3 (BubbleUp)** = **Investigate** — automated search for the dimensions that differentiate
-  outlier traffic from healthy traffic. BubbleUp compares distributions across *all* columns,
-  surfacing what's different without you guessing which field to check.
-- **Step 4 (Traces)** = deeper **Investigate** — follow one request end-to-end through the trace
-  waterfall to confirm the mechanism behind what BubbleUp surfaced.
-- **Step 5 (Verify)** = **Evaluate** — confirm the hypothesis by querying with and without
-  the suspected cause.
-
-The loop only works if your events are wide enough to have dimensions worth diffing. If
-BubbleUp returns nothing useful, the issue is often an instrumentation gap — not a BubbleUp
-failure. Add the missing attributes (see the **otel-instrumentation** skill) and try again.
-
-For the conceptual foundations behind this loop, see the **observability-fundamentals** skill.
+This workflow implements the core analysis loop (**Define → Visualize → Investigate →
+Evaluate**) from the **observability-fundamentals** skill. If BubbleUp returns nothing
+useful, the issue is often an instrumentation gap — add the missing attributes (see the
+**otel-instrumentation** skill) and try again.
 
 ## Investigation Workflow
 

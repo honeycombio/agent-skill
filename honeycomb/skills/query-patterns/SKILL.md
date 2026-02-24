@@ -2,21 +2,15 @@
 name: query-patterns
 description: >
   Use when constructing or interpreting Honeycomb queries — provides opinionated
-  guidance on which operations to use (percentiles not AVG for latency,
-  HEATMAP for distributions), how to combine calculations, relational field
-  patterns, and how to interpret results (P99/P50 ratios, heatmap bands,
-  TOTAL/OTHER rows, raw JSON via query_result_json). Load this skill
-  before calling run_query. Trigger phrases: "show me latency", "what's the error rate",
-  "find slow requests", "show me the distribution", "query Honeycomb",
-  "find outliers", "search traces", "why is latency high",
-  "why are some requests slow", "what does this result mean",
-  "explain the heatmap", "interpret these numbers", "is it getting worse",
-  "compare before and after", "find fields", "discover columns",
-  "look at past queries", "query across services", "use relational fields",
-  "download raw results", or any request to query, visualize, or interpret
-  Honeycomb data.
+  guidance on operation selection (percentiles not AVG, HEATMAP for distributions),
+  relational field patterns, calculated fields, and result interpretation
+  (P99/P50 ratios, heatmap bands, TOTAL/OTHER rows, raw JSON via query_result_json).
+  Trigger phrases: "query Honeycomb", "show me latency", "error rate",
+  "find slow requests", "distribution", "find outliers", "interpret results",
+  "relational fields", "calculated fields", "download raw results",
+  or any request to query, visualize, or interpret Honeycomb data.
 metadata:
-  version: "1.4.0"
+  version: "2.0.0"
 ---
 
 # Honeycomb Query Patterns
@@ -81,13 +75,11 @@ classify, and combine existing fields without re-instrumenting code.
 For full syntax, operator reference, and extended anti-pattern examples, consult
 `${CLAUDE_PLUGIN_ROOT}/skills/query-patterns/references/calculated-fields.md`.
 
-## Always Check
+## Before Every Query
 
-- **Use P99/P95 for latency**, not AVG — AVG hides tail latency that affects real users
 - **Filter on `is_root`** when measuring user-facing latency — without it, internal spans inflate the numbers
 - **Use human-readable time ranges** (`"24h"`, `"-6h"`) — epoch timestamps are error-prone and hard to review
 - **Validate columns with `find_columns` before querying** — confirms field names exist and prevents empty results
-- **Combine calculations in one query** (`COUNT, P99(duration_ms), HEATMAP(duration_ms)`) — reduces API calls and gives a complete picture in one view
 
 ## Interpreting Results
 

@@ -2,43 +2,29 @@
 name: otel-instrumentation
 description: >
   Use when the user asks to "instrument my app", "add tracing",
-  "set up OpenTelemetry", "configure OTel", "add custom spans", "add attributes to spans",
-  "send traces to Honeycomb", "set up OTLP", "configure the OTel SDK",
-  "add span events", "add span links", "instrument with OpenTelemetry",
-  "set up tracing for Go", "set up tracing for Python", "set up tracing for Node.js",
-  "set up tracing for Java", "set up tracing for Ruby", "set up tracing for .NET",
-  "add observability", "improve instrumentation", "configure sampling",
-  "set up head sampling", "set up tail sampling", "configure the OTel Collector",
-  or needs guidance on OpenTelemetry SDK setup, custom instrumentation, or sending data to Honeycomb.
+  "set up OpenTelemetry", "configure OTel", "add custom spans",
+  "add attributes to spans", "send traces to Honeycomb",
+  "set up OTLP", "configure sampling", "add span events",
+  "set up tracing for [any language]", "configure the OTel Collector",
+  or needs guidance on OpenTelemetry SDK setup, custom instrumentation,
+  or sending data to Honeycomb.
 metadata:
-  version: "1.4.0"
+  version: "2.0.0"
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb
 
-Guide to instrumenting applications with OpenTelemetry to send traces to Honeycomb.
-Covers SDK setup, OTLP configuration, custom spans, attributes, span events, and sampling.
+SDK setup, custom spans, attributes, span events, sampling, and layered telemetry.
+For conceptual foundations (why wide events matter, how attributes connect to
+investigation), see the **observability-fundamentals** skill.
 
-## OTLP Configuration (All Languages)
+## OTLP Configuration and SDK Setup
 
 Every OTel SDK needs three environment variables to send data to Honeycomb:
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME`.
 
-```bash
-export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io"
-export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
-export OTEL_SERVICE_NAME="your-service-name"
-```
-
-**EU endpoint**: `https://api.eu1.honeycomb.io`
-
-**Important**: `OTEL_SERVICE_NAME` determines the dataset name in Honeycomb. Choose a
-descriptive, stable name (e.g., `checkout-service`, not `my-app`).
-
-## SDK Setup
-
-The pattern is the same across languages: install the OTel SDK + OTLP exporter, create a
-TracerProvider, and set the three env vars above. For language-specific setup (Go, Python,
-Node.js, Java, Ruby, .NET, Rust), consult
+For the env var values, language-specific dependencies, and setup code (Go, Python,
+Node.js, Java, Ruby, .NET, Rust), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`.
 
 ## Custom Instrumentation
@@ -58,6 +44,42 @@ Wrap important business operations for visibility in the trace waterfall. Use
 For full code examples in all languages, consult
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`.
 
+## When to Create a Span
+
+Not every function needs a span. Two questions determine whether a span is worth creating:
+
+1. **Is it interesting?** — Does the work meaningfully impact performance (latency or
+   failures) for the overall request?
+2. **Is it aggregable?** — If you group this span by name and attributes, will it produce
+   useful trends and comparisons?
+
+| Operation | Interesting? | Aggregable? | Create a Span? |
+| :--- | :--- | :--- | :--- |
+| HTTP request handler | Yes — variable latency, can fail | Yes — group by route, method, status | **Yes** |
+| Database query | Yes — I/O bound, failure-prone | Yes — group by query type, table | **Yes** |
+| External API call | Yes — network latency, dependencies | Yes — group by endpoint, status | **Yes** |
+| Cache lookup | Yes — fast vs slow path | Yes — group by cache name, hit/miss | **Yes** |
+| Message queue pub/consume | Yes — async boundary, delays | Yes — group by queue, message type | **Yes** |
+| Business logic transaction | Yes — meaningful state change | Yes — group by type, outcome | **Yes** |
+| Private helper function | No — trivial CPU, predictable | No — too granular | **No** |
+| Loop iteration | Maybe — if slow | No — unbounded cardinality | **No** |
+| Getter/setter | No — no meaningful duration | No — nothing to group by | **No** |
+| Input validation (pure CPU) | No — fast, predictable | Maybe | **No** |
+| Business logic orchestration | No — just calls instrumented code | No — duration is sum of children | **No** |
+
+**Common mistakes:**
+- **Too many spans**: A trace with millions of 2ms spans is far too detailed and rarely
+  actionable. Roll them up — combine into a single span, or capture the detail as an
+  attribute on the parent span instead.
+- **Too few spans**: Collapsing hours of work into a single opaque handler leaves you
+  guessing about where time is spent.
+
+When in doubt, prefer **attributes on existing spans** over creating new child spans.
+Important sub-operation durations work better as timing attributes on the parent span
+(e.g., `auth.duration_ms`) — they're easier to query without JOINs and work directly
+with BubbleUp. See the Timing Attributes pattern in
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`.
+
 ## What to Instrument
 
 ### High Value (Instrument First)
@@ -67,8 +89,6 @@ For full code examples in all languages, consult
 - Message queue producers/consumers
 
 These are typically auto-instrumented by OTel SDKs and form the skeleton of your traces.
-They give you the basic shape of every request — where time is spent across services,
-databases, and external calls. Without them you have no trace structure at all.
 
 ### Medium Value (Add Next)
 - Business logic operations (checkout, payment, fulfillment)
@@ -78,23 +98,16 @@ databases, and external calls. Without them you have no trace structure at all.
 
 These are your business logic. Without custom spans here, you can see that a request was
 slow but not *why* — the trace waterfall has gaps where the important work happens
-invisibly. A 2-second gap between an HTTP handler span and a database span means something
-significant happened, but without a span covering it, you're guessing.
+invisibly.
 
 ### Attributes to Add
-- **User context**: `user.id`, `user.role`, `tenant.id`
-- **Business context**: `order.id`, `cart.value`, `feature.flag`
-- **Deployment context**: `deployment.version`, `deployment.environment`
-- **Request context**: Already added by auto-instrumentation (HTTP, gRPC fields)
 
-Attributes are the dimensions BubbleUp uses during investigations. Every `user.id`,
-`tenant.name`, `feature.flag` you add is a new axis BubbleUp can diff on to find what's
-different about outlier requests. Instrument for the questions you'll ask at 3am — "is
-this one user?", "is this the new deploy?", "is this behind a feature flag?" — each of
-those questions requires the corresponding attribute to exist on your spans.
+Attributes are the dimensions BubbleUp uses during investigations. Every attribute you
+add is a new axis BubbleUp can diff on to find what's different about outlier requests.
+For the complete catalog organized by category with rationale and example queries, see
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/wide-event-attributes.md`.
 
-For more on why attributes matter and how they connect to investigation workflows, see
-the **observability-fundamentals** skill.
+For why attributes matter conceptually, see the **observability-fundamentals** skill.
 
 ## Span Events and Span Links
 
@@ -108,17 +121,34 @@ for full examples of both patterns.
 
 ## Sampling
 
+### Sampling Strategy
+
+Sampling is about tradeoffs — there is no free lunch:
+
+- **Head sampling favors cost over debuggability.** You save resources, but a 0.1% error
+  at 1% sampling becomes effectively invisible. Head sampling is oblivious to what
+  happens downstream.
+- **Tail sampling favors fidelity over simplicity.** You keep interesting traces but need
+  infrastructure (Refinery or Collector) to buffer and evaluate complete traces.
+
+The math matters: if an error occurs 0.1% of the time and you head-sample at 1%, you'll
+capture roughly 1 in 100,000 of those errors. At moderate traffic, that error may never
+appear in your data.
+
 ### Head Sampling (SDK-level)
 Decides whether to sample a trace at creation time. Simple but can miss interesting traces.
 - Configure via `OTEL_TRACES_SAMPLER` env var
 - `always_on` (default), `always_off`, `traceidratio` (e.g., sample 10%)
 - `parentbased_traceidratio` respects parent sampling decisions
+- **Best for:** Very high-throughput services where you can tolerate missing rare events
 
 ### Tail Sampling (Collector/Refinery)
 Decides after the trace is complete. Keeps interesting traces (errors, slow requests).
 - Use Honeycomb's **Refinery** for production tail sampling
 - Or configure the OTel Collector's `tail_sampling` processor
 - Can sample based on: latency, error status, specific attributes, trace duration
+- **Best for:** Services where debuggability matters — keeps errors and outliers while
+  sampling routine traffic
 
 ### Sampling Impact on Honeycomb
 - Sampling reduces data volume and cost
@@ -126,21 +156,39 @@ Decides after the trace is complete. Keeps interesting traces (errors, slow requ
 - Trace completeness may be affected — missing spans if not all services sample consistently
 - Start with no sampling, then add as needed for cost management
 
+## Layered Telemetry
+
+OpenTelemetry is "trace-first" — context propagation is the glue that correlates all
+signals. But effective observability layers multiple signal types for different purposes.
+
+A three-question test for choosing the right signal:
+
+1. **What needs causality and full-request context?** → Traces (spans)
+2. **What needs inexpensive long-term storage and fast alerting?** → Metrics
+3. **What is rare vs. common, and what are the audit requirements?** → Logs / events
+
+**The histogram-alongside-spans pattern:** For high-throughput HTTP services, emit both a
+span and a histogram metric for each handled request. This lets you head-sample traces
+for cost while histograms provide last-ditch alerting — and exemplars link outlier metric
+points back to specific traces for deeper investigation.
+
+The technique is *layering* (not duplication) because each signal provides a different
+view at a different level of detail.
+
+For architectural patterns where layering is essential (streaming, async jobs, ETL), see
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/architectural-patterns.md`.
+
 ## Logs in Honeycomb
 
-OTel isn't just for traces — it can send logs too. If you have existing log infrastructure,
-the OTel Collector can ingest logs and forward them to Honeycomb as structured events:
+OTel can send logs too. If you have existing log infrastructure, the OTel Collector can
+ingest logs and forward them to Honeycomb as structured events:
 
-- **OTel SDK log bridge**: Most OTel SDKs provide a log bridge that captures logs from
-  your existing logging library (e.g., `slog` in Go, `logging` in Python, `winston`/`pino`
-  in Node.js) and exports them as OTel log records.
-- **OTel Collector `filelog` receiver**: Reads log files, parses them, and exports as OTLP.
-- **Collector log pipeline**: Use the `filelog` or `otlp` receiver → processors for
-  parsing, enriching, and filtering → `otlp` exporter to Honeycomb.
+- **OTel SDK log bridge**: Captures logs from your existing logging library (`slog` in Go,
+  `logging` in Python, `winston`/`pino` in Node.js) and exports them as OTel log records.
+- **OTel Collector `filelog` receiver**: Reads log files, parses them, exports as OTLP.
 
 Logs sent through OTel arrive in Honeycomb as structured events with the same query
-capabilities as spans. This is a good migration path if you have existing log pipelines
-but want the analytical power of Honeycomb's query engine and BubbleUp.
+capabilities as spans.
 
 ## Naming Conventions
 
@@ -152,10 +200,12 @@ but want the analytical power of Honeycomb's query engine and BubbleUp.
 ## Additional Resources
 
 ### Reference Files
-- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`** — Complete SDK setup for Go, Python, Node.js, Java, Ruby, .NET, Rust
-- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`** — Detailed custom instrumentation patterns with full code examples
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`** — OTLP configuration and SDK setup for Go, Python, Node.js, Java, Ruby, .NET, Rust
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`** — Custom instrumentation patterns with full code examples (timing attributes, exception slugs, async request summaries)
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/wide-event-attributes.md`** — Canonical attribute catalog organized by category with example queries
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/architectural-patterns.md`** — Trace design patterns for streaming, async, ETL, and serverless architectures
 
 ### Cross-References
-- For the conceptual foundations of why wide events and attributes matter, see the **observability-fundamentals** skill
-- After instrumenting, use the **query-patterns** skill to verify data is arriving in Honeycomb
+- For conceptual foundations of why wide events and attributes matter: **observability-fundamentals** skill
+- After instrumenting, use the **query-patterns** skill to verify data is arriving

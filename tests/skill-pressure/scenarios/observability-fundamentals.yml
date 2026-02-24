@@ -43,3 +43,48 @@ scenarios:
       anti_patterns: []
     without_skill:
       expected_patterns: []
+
+  # --- v1.5.0 scenarios ---
+
+  - id: metrics-are-sampling
+    name: "Explain that metrics are a form of sampling"
+    prompt: >
+      My team thinks metrics are cheaper and simpler than structured events.
+      Why should we invest in wide events when Prometheus metrics seem to
+      give us what we need? What are we missing?
+    with_skill:
+      required_patterns:
+        - "(?i)form of sampling|pre.?aggregat|discard"
+        - "(?i)constrain|pre.?decide|limit.*question"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)metric|prometheus|counter|gauge"
+
+  - id: instrumentation-as-dev-practice
+    name: "Frame instrumentation as a development lifecycle practice, not an ops task"
+    prompt: >
+      Who should own instrumentation in our organization? Our ops team
+      currently handles all monitoring. Should they also handle OTel
+      instrumentation?
+    with_skill:
+      required_patterns:
+        - "(?i)developer|engineer.*write|write.*code"
+        - "(?i)code.?review|planning|post.?incident"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: data-shape-constrains-questions
+    name: "Explain that data shape constrains investigative questions"
+    prompt: >
+      I'm deciding between adding detailed structured events versus simple
+      log lines with grep-able messages. My team says logs are good enough
+      for debugging. How should I think about this choice?
+    with_skill:
+      required_patterns:
+        - "(?i)shape.*constrain|constrain.*question|pre.?decide"
+        - "(?i)query.?time|dimension|GROUP BY|slice"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

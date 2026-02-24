@@ -24,9 +24,11 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Stat row** — three stats side-by-side at the top:
 ```json
-{ "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
+[
+  { "type": "query", "id": "QR-...", "name": "Request Rate", "chart_type": "stat", "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...", "name": "Error Rate",   "chart_type": "stat", "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...", "name": "P95 Latency",  "chart_type": "stat", "size": { "width": 4 } }
+]
 ```
 
 **Full-width heatmap**:
@@ -36,14 +38,18 @@ Use `size: { "width": N, "height": N }` to control each panel:
 
 **Two graphs side-by-side**:
 ```json
-{ "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
-{ "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
+[
+  { "type": "query", "id": "QR-...", "name": "Request Rate", "size": { "width": 6 } },
+  { "type": "query", "id": "QR-...", "name": "Error Rate",   "size": { "width": 6 } }
+]
 ```
 
 **SLO widget beside a summary graph**:
 ```json
-{ "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
-{ "type": "query", "id": "QR-...",   "size": { "width": 8 } }
+[
+  { "type": "slo",   "id": "SLO-...",  "size": { "width": 4 } },
+  { "type": "query", "id": "QR-...",   "size": { "width": 8 } }
+]
 ```
 
 There's no one right layout. Design it to tell a story — context at the top, most important signals next, breakdowns below.
@@ -83,11 +89,13 @@ Use `"combo"` when there's a GROUP BY / breakdown — you want to see both the g
 `preset_filters` creates interactive dropdown controls on the board — viewers can filter all graphs by a column value without editing queries. Maximum 5.
 
 ```json
-"preset_filters": [
-  { "column": "http.route",       "alias": "Route" },
-  { "column": "app.region",       "alias": "Region" },
-  { "column": "app.account_tier", "alias": "Account Tier" }
-]
+{
+  "preset_filters": [
+    { "column": "http.route",       "alias": "Route" },
+    { "column": "app.region",       "alias": "Region" },
+    { "column": "app.account_tier", "alias": "Account Tier" }
+  ]
+}
 ```
 
 Good candidates: route, region, account tier, deployment version, user type. Especially useful for boards shared across teams or used during incidents. If the service has meaningful segmentation columns, suggest preset filters.
@@ -95,7 +103,7 @@ Good candidates: route, region, account tier, deployment version, user type. Esp
 ## Tags
 
 ```json
-"tags": ["team:platform", "tier:critical"]
+{ "tags": ["team:platform", "tier:critical"] }
 ```
 
 Use `list_boards` to see existing tags and follow those formats.

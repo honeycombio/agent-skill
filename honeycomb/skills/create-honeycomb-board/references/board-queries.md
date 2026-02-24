@@ -45,15 +45,10 @@ Graph `HEATMAP(duration_ms)`. When there's a GROUP BY, use `P95(duration_ms)` in
 
 ## Error rate
 
-You need a calculated field. First find the column that signals errors (`error`, `http.status_code`, an app-specific field, etc.).
-
-```javascript
-calculated_field: error_pct = MUL(IF($error, 1, 0), 100)
-calculation: AVG(error_pct)
-// Result: 4.94 means 4.94%
-```
-
-Include this as two panels: a stat panel for the current number, and a line graph for trends over time. To work around Honeycomb's "no duplicate queries" restriction, add `service.name exists` as a filter on one of them.
+Use the error rate calculated field pattern from the **query-patterns** skill (see the
+Calculated Fields section). Include error rate as two panels: a stat panel for the
+current number, and a line graph for trends over time. To work around Honeycomb's
+"no duplicate queries" restriction, add `service.name exists` as a filter on one of them.
 
 You might also break down errors by `exception.message` to see what's failing.
 

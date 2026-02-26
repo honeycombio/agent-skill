@@ -1,0 +1,46 @@
+skill: query-patterns
+skill_file: honeycomb/skills/query-patterns/SKILL.md
+
+scenarios:
+  - id: avg-vs-p99
+    name: "Prefer P99 and HEATMAP over AVG for latency"
+    prompt: >
+      Checkout is slow. What Honeycomb query would you construct to investigate?
+      Be specific about the calculations and columns you'd use.
+    with_skill:
+      required_patterns:
+        - "(?i)\\bP99\\b|\\bP95\\b|\\bP90\\b"
+        - "(?i)\\bHEATMAP\\b"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)\\bAVG\\b"
+
+  - id: relational-fields
+    name: "Use relational fields for cross-service queries"
+    prompt: >
+      The recommendation service is throwing errors. Which user-facing endpoints
+      are affected? What Honeycomb query would you write to find out?
+      Be specific about the fields and calculations.
+    with_skill:
+      required_patterns:
+        - "(?i)any\\.service\\.name|root\\.http\\.route|root\\.name"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)service\\.name|endpoint|route"
+
+  - id: bimodal-interpretation
+    name: "Identify bimodal distribution from P99/P50 ratio"
+    prompt: >
+      I ran a Honeycomb query and the P99 latency is 2000ms while the P50 is 50ms.
+      That's a 40x ratio. What does this tell you about the latency distribution
+      and what would you do next in Honeycomb?
+    with_skill:
+      required_patterns:
+        - "(?i)bimodal|two (populations|groups|clusters)|two distinct"
+        - "(?i)\\bHEATMAP\\b"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)outlier|tail|slow"

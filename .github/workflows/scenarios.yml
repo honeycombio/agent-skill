@@ -1,0 +1,224 @@
+name: Scenario Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Run ALL scenarios (default: core subset only)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 6 * * 1,4"  # Mon/Thu 6am UTC
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install Claude CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate Honeycomb API key
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          echo "=== Testing API key against MCP server ==="
+          HTTP_CODE=$(curl -s -o /tmp/mcp-auth-test.txt -w '%{http_code}' \
+            -X POST https://mcp.honeycomb.io/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -H "Authorization: Bearer ${HONEYCOMB_API_KEY}" \
+            -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci-test","version":"1.0"}},"id":1}')
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "401" ]; then
+            echo "FATAL: Honeycomb API key is invalid (401 Unauthorized)"
+            echo "The HONEYCOMB_API_KEY secret must be a management v2 key in format key_id:key_secret"
+            exit 1
+          fi
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "WARNING: Unexpected HTTP status $HTTP_CODE"
+            cat /tmp/mcp-auth-test.txt | head -5
+          fi
+          echo "API key validated (HTTP $HTTP_CODE)"
+
+      - name: Configure Honeycomb MCP
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          export PROXY_PATH="$(pwd)/tests/scenarios/mcp-http-proxy.mjs"
+          export CONFIG_PATH="$(pwd)/.mcp.json"
+
+          python3 -c "
+          import json, os
+          key = os.environ['HONEYCOMB_API_KEY']
+          proxy = os.environ['PROXY_PATH']
+          config = {
+              'mcpServers': {
+                  'honeycomb': {
+                      'command': 'node',
+                      'args': [proxy, key]
+                  }
+              }
+          }
+          with open(os.environ['CONFIG_PATH'], 'w') as f:
+              json.dump(config, f, indent=2)
+          "
+
+          echo "Generated .mcp.json (key redacted):"
+          python3 -c "
+          import json, os
+          c = json.load(open(os.environ['CONFIG_PATH']))
+          c['mcpServers']['honeycomb']['args'][1] = '***'
+          print(json.dumps(c, indent=2))
+          "
+
+      - name: Test proxy directly
+        env:
+          HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+        run: |
+          echo "=== Testing proxy script independently ==="
+          INIT='{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}'
+          echo "$INIT" | timeout 15 node tests/scenarios/mcp-http-proxy.mjs "${HONEYCOMB_API_KEY}" 2>&1 | head -20
+          echo ""
+          echo "=== Proxy test exit code: $? ==="
+
+      - name: Verify MCP connectivity
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          CONFIG_PATH="$(pwd)/.mcp.json"
+          echo "=== Using config: $CONFIG_PATH ==="
+          echo "=== Verifying Claude can reach MCP server ==="
+          claude -p "Call get_workspace_context and tell me the team name." \
+            --output-format stream-json --verbose \
+            --mcp-config "$CONFIG_PATH" \
+            --max-turns 2 \
+            --allowedTools "mcp__honeycomb__get_workspace_context" 2>&1 | tee mcp-verify.ndjson
+          echo ""
+          echo "=== Checking MCP status ==="
+          if grep -q '"status":"failed"' mcp-verify.ndjson; then
+            echo "FATAL: MCP server failed to connect"
+            grep -o '"mcp_servers":\[[^]]*\]' mcp-verify.ndjson || true
+            exit 1
+          fi
+          if grep -q '"status":"needs-auth"' mcp-verify.ndjson; then
+            echo "FATAL: MCP server needs auth"
+            exit 1
+          fi
+          if ! grep -q 'tool_use' mcp-verify.ndjson; then
+            echo "FATAL: No tool_use blocks — MCP tools not available"
+            exit 1
+          fi
+          echo "MCP connectivity verified"
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      # Clear any stale results from previous runs
+      - name: Clear previous output
+        run: rm -rf tests/scenarios/output/
+
+      # Canary: fast smoke tests that verify the plugin-dir pipeline is
+      # loading skills and affecting Claude's behavior.  If these fail,
+      # the comparison suite results would be meaningless.
+      - name: Run canary tests
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/scenarios/test_scenarios.py::test_canary \
+            -v -s --tb=short 2>&1 | tee canary-output.txt
+          echo "## Canary Results" >> $GITHUB_STEP_SUMMARY
+          tail -5 canary-output.txt >> $GITHUB_STEP_SUMMARY
+
+      # Always run comparison mode: plugin vs MCP-only for every scenario.
+      # Default (scheduled + manual): core subset (~10 scenarios, both modes)
+      # Full (manual with full=true): all 20 scenarios, both modes
+      - name: Run scenario comparisons (core)
+        if: ${{ !inputs.full }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/scenarios/test_scenarios.py::test_scenario_core \
+            -v -s --tb=short 2>&1 | tee scenario-output.txt || true
+
+      - name: Run scenario comparisons (full)
+        if: ${{ inputs.full }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/scenarios/test_scenarios.py::test_scenario \
+            -v -s --tb=short 2>&1 | tee scenario-output.txt || true
+
+      - name: Generate comparison report
+        if: always()
+        run: |
+          if [ -f tests/scenarios/output/_comparison_results.json ]; then
+            python -m tests.scenarios.report \
+              --output tests/scenarios/output/comparison-report.html
+            echo "## Comparison Report" >> $GITHUB_STEP_SUMMARY
+            echo "Download the HTML report from the **scenario-report** artifact." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No comparison results to generate report from"
+          fi
+
+      - name: Upload scenario output
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scenario-output
+          path: |
+            tests/scenarios/output/
+            mcp-verify.ndjson
+          retention-days: 14
+
+      - name: Upload comparison report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: scenario-report
+          path: tests/scenarios/output/comparison-report.html
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Check results
+        if: always()
+        run: |
+          if [ ! -f scenario-output.txt ]; then
+            echo "No scenario output found"
+            exit 1
+          fi
+
+          # Extract pass/fail counts from pytest summary line
+          SUMMARY=$(grep -P '\d+ (failed|passed)' scenario-output.txt | tail -1 || true)
+          FAILED=$(echo "$SUMMARY" | grep -oP '\d+(?= failed)' || echo "0")
+          PASSED=$(echo "$SUMMARY" | grep -oP '\d+(?= passed)' || echo "0")
+
+          echo "Results: ${PASSED} passed, ${FAILED} failed"
+          echo "## Scenario Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "**${PASSED} passed, ${FAILED} failed** (tolerance: 2 failures allowed)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -30 scenario-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Allow up to 2 failures (LLM non-determinism tolerance)
+          MAX_FAILURES=2
+          if [ "$FAILED" -gt "$MAX_FAILURES" ]; then
+            echo "FATAL: ${FAILED} failures exceeds tolerance of ${MAX_FAILURES}"
+            exit 1
+          fi
+          if [ "$PASSED" -eq "0" ]; then
+            echo "FATAL: No tests passed — likely infrastructure issue"
+            exit 1
+          fi
+          echo "Within tolerance (${FAILED} <= ${MAX_FAILURES})"

@@ -1,0 +1,106 @@
+"""Plugin manifest and directory layout tests."""
+
+import json
+import re
+
+import pytest
+
+from tests.constants import REQUIRED_SKILLS
+
+
+def test_plugin_json(plugin_json_path):
+    """plugin.json exists, is valid, and has required fields."""
+    assert plugin_json_path.exists(), f"plugin.json not found at {plugin_json_path}"
+    data = json.loads(plugin_json_path.read_text())
+    assert data["name"] == "honeycomb"
+    for field in ("version", "description"):
+        assert data.get(field), f"plugin.json field '{field}' is missing or empty"
+    parts = data["version"].split(".")
+    assert len(parts) == 3 and all(p.isdigit() for p in parts), (
+        f"Version should be semver, got: {data['version']}"
+    )
+
+
+@pytest.mark.parametrize("skill_name", REQUIRED_SKILLS)
+def test_skill_layout(skills_dir, skill_name):
+    """Each skill has SKILL.md and a non-empty references/ directory."""
+    assert (skills_dir / skill_name / "SKILL.md").is_file(), (
+        f"SKILL.md missing for: {skill_name}"
+    )
+    refs = list((skills_dir / skill_name / "references").glob("*.md"))
+    assert refs, f"No reference files in {skill_name}/references/"
+
+
+def test_agents_exist(agent_md_files):
+    assert agent_md_files, "No agent .md files found"
+
+
+def test_commands_exist(command_md_files):
+    assert command_md_files, "No command .md files found"
+
+
+def test_no_unexpected_top_level_dirs(plugin_root):
+    expected = {".claude-plugin", "skills", "agents", "commands", "hooks"}
+    actual = {p.name for p in plugin_root.iterdir() if p.is_dir()}
+    unexpected = actual - expected
+    assert not unexpected, f"Unexpected top-level directories: {unexpected}"
+
+
+def test_marketplace_json_exists(marketplace_json_path):
+    """marketplace.json exists at repo root."""
+    assert marketplace_json_path.exists(), (
+        f"marketplace.json not found at {marketplace_json_path}"
+    )
+
+
+def test_marketplace_json_valid(marketplace_json_path):
+    """marketplace.json is valid JSON with required fields."""
+    data = json.loads(marketplace_json_path.read_text())
+    for field in ("name", "version", "owner", "plugins"):
+        assert field in data, f"marketplace.json missing required field: {field}"
+    assert isinstance(data["plugins"], list), "plugins must be a list"
+    assert len(data["plugins"]) > 0, "plugins list must not be empty"
+
+
+def test_marketplace_plugin_source_exists(marketplace_json_path):
+    """Each plugin source path in marketplace.json points to an existing directory."""
+    data = json.loads(marketplace_json_path.read_text())
+    for plugin in data["plugins"]:
+        source = plugin.get("source", "")
+        repo_root = marketplace_json_path.parent.parent
+        resolved = (repo_root / source).resolve()
+        assert resolved.is_dir(), (
+            f"Plugin source '{source}' does not resolve to a directory: {resolved}"
+        )
+
+
+def test_marketplace_version_matches_plugin_json(marketplace_json_path, plugin_json_path):
+    """Plugin version in marketplace.json matches plugin.json (single source of truth)."""
+    marketplace = json.loads(marketplace_json_path.read_text())
+    plugin = json.loads(plugin_json_path.read_text())
+    for entry in marketplace["plugins"]:
+        if entry["name"] == plugin["name"]:
+            assert entry["version"] == plugin["version"], (
+                f"Version mismatch: marketplace.json has {entry['version']}, "
+                f"plugin.json has {plugin['version']}"
+            )
+            break
+    else:
+        pytest.fail(
+            f"Plugin '{plugin['name']}' not found in marketplace.json plugins list"
+        )
+
+
+def test_skill_reference_paths_use_plugin_root(skill_md_files):
+    """All references/ paths in SKILL.md files must use ${CLAUDE_PLUGIN_ROOT} prefix."""
+    bare_ref_pattern = re.compile(r"`references/")
+    violations = []
+    for path in skill_md_files:
+        content = path.read_text()
+        for lineno, line in enumerate(content.splitlines(), 1):
+            if bare_ref_pattern.search(line):
+                violations.append(f"{path.name}:{lineno}: {line.strip()}")
+    assert not violations, (
+        "Found bare references/ paths without ${CLAUDE_PLUGIN_ROOT} prefix:\n"
+        + "\n".join(violations)
+    )

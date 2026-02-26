@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Secrets
+.env
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# Dependency lock files
+uv.lock
+
+# Scenario test outputs
+tests/scenarios/output/
+
+# Skill eval/iteration workspace
+honeycomb/skills-workspace/

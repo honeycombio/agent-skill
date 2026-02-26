@@ -1,0 +1,138 @@
+skill: otel-instrumentation
+skill_file: honeycomb/skills/otel-instrumentation/SKILL.md
+
+scenarios:
+  - id: attributes-before-spans
+    name: "Prioritize adding attributes over creating new spans"
+    prompt: >
+      I just set up OpenTelemetry auto-instrumentation on my checkout service.
+      What custom instrumentation should I add first? Be specific about what
+      to prioritize and why.
+    with_skill:
+      required_patterns:
+        - "(?i)attribute|set.?attribute|SetAttributes"
+        - "(?i)user\\.id|tenant|business.context"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)new span|create.*span|custom span|start.*span"
+
+  - id: service-name-matters
+    name: "Explain OTEL_SERVICE_NAME determines dataset name"
+    prompt: >
+      I'm configuring OpenTelemetry to send traces to Honeycomb. What
+      environment variables do I need and are there any gotchas I should
+      know about?
+    with_skill:
+      required_patterns:
+        - "(?i)OTEL_SERVICE_NAME"
+        - "(?i)dataset|descriptive|stable"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: instrumentation-for-bubbleup
+    name: "Connect instrumentation decisions to BubbleUp debugging value"
+    prompt: >
+      Why should I add user.id and deployment.version as span attributes?
+      I already have auto-instrumentation capturing HTTP and DB spans.
+    with_skill:
+      required_patterns:
+        - "(?i)bubbleup|bubble.?up"
+        - "(?i)3.?am|incident|investigation|debug"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  # --- v1.5.0 scenarios ---
+
+  - id: timing-attributes-over-child-spans
+    name: "Recommend timing attributes on parent span over child spans for sub-operations"
+    prompt: >
+      I want to track how long authentication takes in my HTTP handler. My
+      teammate suggests creating a child span around the auth call. I'm using
+      Go with OpenTelemetry. What's the best approach and why?
+    with_skill:
+      required_patterns:
+        - "(?i)timing.*attribute|attribute.*duration|duration_ms|auth\\.duration"
+        - "(?i)parent.?span|existing.?span|same.?span"
+        - "(?i)bubbleup|bubble.?up|join|query"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)child.?span|tracer\\.Start|start.*span|start_as_current"
+
+  - id: exception-slugs
+    name: "Recommend exception.slug pattern for error instrumentation"
+    prompt: >
+      How should I instrument error handling in my service? I want to quickly
+      find which code paths are throwing errors and be able to jump from a
+      dashboard spike to the exact code location. I'm using Python with OTel.
+    with_skill:
+      required_patterns:
+        - "(?i)exception\\.slug|exception_slug"
+        - "(?i)grep|greppable|search.*code|code.*search"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)record_exception|RecordError|set_status"
+
+  - id: when-to-create-span
+    name: "Use the interesting+aggregable heuristic for span creation decisions"
+    prompt: >
+      I'm instrumenting a Python web service. It has HTTP handlers, a pure-CPU
+      input validation function, some private helper methods, a database query
+      layer, and getter/setter methods on model classes. Which of these should
+      get their own spans and which shouldn't?
+    with_skill:
+      required_patterns:
+        - "(?i)interesting|meaningful.*impact|latency|fail"
+        - "(?i)aggreg|group.?by"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: sampling-tradeoff-math
+    name: "Explain sampling cost/debuggability tradeoff with specific reasoning"
+    prompt: >
+      Should I use head sampling or tail sampling for my service? We handle
+      about 10,000 requests per minute and have a 0.1% error rate. What are
+      the tradeoffs?
+    with_skill:
+      required_patterns:
+        - "(?i)cost.*debuggab|debuggab.*cost|fidelity|invisible"
+        - "(?i)tail.*interest|tail.*error|tail.*keep"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: layered-telemetry
+    name: "Recommend histogram-alongside-spans pattern for high-throughput services"
+    prompt: >
+      My HTTP service handles 50,000 requests per second. I'm worried about
+      trace storage costs but I still need to detect latency regressions and
+      errors. What instrumentation strategy should I use?
+    with_skill:
+      required_patterns:
+        - "(?i)histogram|metric.*alongside|layer"
+        - "(?i)head.?sampl|sample.*trace"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)sampl|reduc|limit"
+
+  - id: attribute-catalog-breadth
+    name: "Reference the full wide-event attribute catalog beyond basic user/deploy context"
+    prompt: >
+      I have basic auto-instrumentation plus user.id and deployment.version
+      on my spans. What other attribute categories should I add to make my
+      events wider? Give me the full picture of what a well-instrumented
+      service looks like.
+    with_skill:
+      required_patterns:
+        - "(?i)feature.?flag"
+        - "(?i)cache|cach"
+        - "(?i)exception\\.slug|error.*slug"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

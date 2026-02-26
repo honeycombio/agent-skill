@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+markers = [
+    "core: core subset of scenarios for faster CI comparison runs",
+    "plugin_only: plugin-only tests without baseline comparison",
+]

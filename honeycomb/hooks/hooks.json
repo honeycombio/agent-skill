@@ -1,0 +1,29 @@
+{
+  "description": "Pre-query column validation via schema caching. Catches unknown column errors before they hit the API by building a per-session schema cache from find_columns / get_dataset_columns / get_dataset results.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*__find_columns|mcp__.*__get_dataset_columns|mcp__.*__get_dataset",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cache-columns.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__.*__run_query",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate-query.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

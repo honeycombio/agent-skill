@@ -1,0 +1,50 @@
+skill: production-investigation
+skill_file: honeycomb/skills/production-investigation/SKILL.md
+
+scenarios:
+  - id: investigation-workflow
+    name: "Structured investigation workflow"
+    prompt: >
+      Production is slow. Describe your step-by-step investigation plan using
+      Honeycomb. Be specific about what tools you'd call and in what order.
+    with_skill:
+      required_patterns:
+        - "(?i)get_workspace_context|orient"
+        - "(?i)bubbleup|bubble.?up|run_bubbleup"
+        - "(?i)get_trace|trace"
+        - "(?i)verify|hypothesis|confirm|control"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)query|dashboard|check"
+
+  - id: bubbleup-chaining
+    name: "Chain BubbleUp results into filtered drill-down"
+    prompt: >
+      I ran BubbleUp on slow checkout requests in Honeycomb and it shows that
+      deployment.version=2.3 accounts for 80% of the slow requests but only 20%
+      of baseline. What should I do next? Be specific about the queries.
+    with_skill:
+      required_patterns:
+        - "(?i)WHERE|filter"
+        - "(?i)control|compare|without|baseline"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)rollback|revert|deploy"
+
+  - id: vague-report-structured
+    name: "Structured approach to vague user complaints"
+    prompt: >
+      Users are complaining that checkout is broken. Describe exactly how you
+      would investigate this in Honeycomb -- what tools would you call first,
+      second, third? Don't just run ad-hoc queries.
+    with_skill:
+      required_patterns:
+        - "(?i)get_workspace_context|workspace.?context|orient"
+        - "(?i)get_slos|get_triggers|SLO|trigger"
+        - "(?i)bubbleup|bubble.?up|run_bubbleup"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)run_query|query|error"

@@ -1,0 +1,90 @@
+skill: observability-fundamentals
+skill_file: honeycomb/skills/observability-fundamentals/SKILL.md
+
+scenarios:
+  - id: wide-events-over-metrics
+    name: "Recommend wide structured events over metrics for observability"
+    prompt: >
+      My team is debating whether to use Prometheus metrics or structured
+      events for our new microservices. What approach should we take for
+      observability and why?
+    with_skill:
+      required_patterns:
+        - "(?i)wide.*event|structured.*event|high.cardinality"
+        - "(?i)dimension|attribute|context"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)counter|gauge|histogram|time.series|metric"
+
+  - id: cardinality-is-valuable
+    name: "High cardinality fields are valuable, not expensive"
+    prompt: >
+      Should I add user.id as a label on my traces? It has millions of
+      unique values. Won't that cause cardinality problems?
+    with_skill:
+      required_patterns:
+        - "(?i)valuable|useful|important|good|want"
+        - "(?i)bubbleup|bubble.?up|query.time|group.by"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)careful|expensive|cost|explosion|consider"
+
+  - id: core-analysis-loop
+    name: "Describe the core analysis loop"
+    prompt: >
+      How should I approach debugging a production issue in Honeycomb?
+      Describe the mental model, not specific tool calls.
+    with_skill:
+      required_patterns:
+        - "(?i)define|visualize|investigate|evaluate"
+        - "(?i)loop|cycle|iterative"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  # --- v1.5.0 scenarios ---
+
+  - id: metrics-are-sampling
+    name: "Explain that metrics are a form of sampling"
+    prompt: >
+      My team thinks metrics are cheaper and simpler than structured events.
+      Why should we invest in wide events when Prometheus metrics seem to
+      give us what we need? What are we missing?
+    with_skill:
+      required_patterns:
+        - "(?i)form of sampling|pre.?aggregat|discard"
+        - "(?i)constrain|pre.?decide|limit.*question"
+      anti_patterns: []
+    without_skill:
+      expected_patterns:
+        - "(?i)metric|prometheus|counter|gauge"
+
+  - id: instrumentation-as-dev-practice
+    name: "Frame instrumentation as a development lifecycle practice, not an ops task"
+    prompt: >
+      Who should own instrumentation in our organization? Our ops team
+      currently handles all monitoring. Should they also handle OTel
+      instrumentation?
+    with_skill:
+      required_patterns:
+        - "(?i)developer|engineer.*write|write.*code"
+        - "(?i)code.?review|planning|post.?incident"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []
+
+  - id: data-shape-constrains-questions
+    name: "Explain that data shape constrains investigative questions"
+    prompt: >
+      I'm deciding between adding detailed structured events versus simple
+      log lines with grep-able messages. My team says logs are good enough
+      for debugging. How should I think about this choice?
+    with_skill:
+      required_patterns:
+        - "(?i)shape.*constrain|constrain.*question|pre.?decide"
+        - "(?i)query.?time|dimension|GROUP BY|slice"
+      anti_patterns: []
+    without_skill:
+      expected_patterns: []

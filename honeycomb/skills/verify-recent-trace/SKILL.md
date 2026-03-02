@@ -1,7 +1,17 @@
 ---
 name: verify-recent-trace
-description: Verifies implementation by querying Honeycomb for recent traces, spans, and attributes. Use when asked to "verify in Honeycomb", "find the most recent trace in Honeycomb", or "show me the trace".
-allowed-tools: mcp__honeycomb__run_query, mcp__honeycomb__get_trace, mcp__honeycomb__get_query_results, mcp__honeycomb__find_queries, Read
+description: >
+  Verifies implementation by querying Honeycomb for recent traces, spans, and
+  attributes. Use when asked to "verify in Honeycomb", "find the most recent
+  trace in Honeycomb", or "show me the trace".
+metadata:
+  version: "1.0.0"
+allowed-tools:
+  - mcp__honeycomb__run_query
+  - mcp__honeycomb__get_trace
+  - mcp__honeycomb__get_query_results
+  - mcp__honeycomb__find_queries
+  - Read
 ---
 
 # Honeycomb Verification Skill

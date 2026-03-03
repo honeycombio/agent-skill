@@ -1,9 +1,7 @@
 ---
 name: verify-recent-trace
 description: >
-  Verifies implementation by querying Honeycomb for recent traces, spans, and
-  attributes. Use when asked to "verify in Honeycomb", "find the most recent
-  trace in Honeycomb", or "show me the trace".
+  Find a recent trace in Honeycomb, to see what happened in a recent test. Use when asked to "verify in Honeycomb", "find the most recent trace", or "show me the trace".
 metadata:
   version: "1.0.0"
 allowed-tools:
@@ -26,7 +24,6 @@ This skill is automatically activated when:
 
 - User asks to "show me a trace in Honeycomb"
 - Completing an implementation step that requires observability verification
-
 
 ## Verification Output
 
@@ -120,5 +117,3 @@ Then calculate the correct time range:
 echo $(( $(date +%s) - $start_time + 20))
 
 Include that in the query you're using to find traces.
-
-

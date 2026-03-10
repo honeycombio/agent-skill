@@ -1,0 +1,16 @@
+{
+  "name": "honeycomb-plugins",
+  "owner": {
+    "name": "Honeycomb"
+  },
+  "metadata": {
+    "description": "Honeycomb observability plugins for Cursor"
+  },
+  "plugins": [
+    {
+      "name": "honeycomb",
+      "source": "./honeycomb",
+      "description": "Skills, agents, and workflows for Honeycomb observability"
+    }
+  ]
+}

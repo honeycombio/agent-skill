@@ -40,7 +40,7 @@ def test_commands_exist(command_md_files):
 
 
 def test_no_unexpected_top_level_dirs(plugin_root):
-    expected = {".claude-plugin", "skills", "agents", "commands", "hooks"}
+    expected = {".claude-plugin", ".cursor-plugin", "skills", "agents", "commands", "hooks", "assets"}
     actual = {p.name for p in plugin_root.iterdir() if p.is_dir()}
     unexpected = actual - expected
     assert not unexpected, f"Unexpected top-level directories: {unexpected}"

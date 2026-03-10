@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "postTool": [
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/scripts/cache-columns.sh"
+      }
+    ],
+    "preTool": [
+      {
+        "command": "bash ${CURSOR_PLUGIN_ROOT}/hooks/scripts/validate-query.sh"
+      }
+    ]
+  }
+}

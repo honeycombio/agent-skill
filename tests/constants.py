@@ -14,4 +14,5 @@ REQUIRED_SKILLS = [
     "otel-migration",
     "create-honeycomb-board",
     "otel-genai-instrumentation",
+    "metrics-queries",
 ]

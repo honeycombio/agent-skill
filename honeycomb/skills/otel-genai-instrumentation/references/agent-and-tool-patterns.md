@@ -152,18 +152,3 @@ invoke_agent qa-assistant             (CLIENT, root)
 ```
 
 If evaluation fails, the agent may re-query or refine — creating additional child spans.
-
-## Key Querying Patterns
-
-**Cost per agent**: GROUP BY `gen_ai.agent.name`, SUM(`gen_ai.usage.input_tokens`),
-SUM(`gen_ai.usage.output_tokens`)
-
-**Tool failure rate**: GROUP BY `gen_ai.tool.name`, COUNT, WHERE `error.type` EXISTS
-
-**Conversation cost**: GROUP BY `gen_ai.conversation.id`,
-SUM(`gen_ai.usage.input_tokens`)
-
-**Slowest tools**: GROUP BY `gen_ai.tool.name`, P99(duration_ms)
-
-**Agent loop detection**: WHERE `gen_ai.operation.name` = `invoke_agent` AND child
-count > 10, then inspect child tool names for repetition

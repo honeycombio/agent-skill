@@ -30,32 +30,43 @@ export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 
 For Honeycomb OTLP authentication setup (including the silent-rejection pitfall), see the **otel-instrumentation** skill.
 
-## Auto-Instrumentation (Python Only)
+## Auto-Instrumentation (Python and Node.js)
 
-Python is the only language with official OTel auto-instrumentation packages for GenAI
-providers. All other languages require manual instrumentation (section below).
+Python and Node.js have official OTel auto-instrumentation packages for GenAI providers.
+Go, Java, etc. require manual instrumentation (section below).
+
+### Python
 
 | Package | Provider | Min SDK Version |
 | :--- | :--- | :--- |
-| `opentelemetry-instrumentation-openai-v2` | OpenAI | v1.26.0+ |
-| `opentelemetry-instrumentation-anthropic` | Anthropic | v0.16.0+ |
-| `opentelemetry-instrumentation-claude-agent-sdk` | Claude Agent SDK | v0.1.14+ |
-| `opentelemetry-instrumentation-google-genai` | Google GenAI | v1.32.0+ |
-| `opentelemetry-instrumentation-vertexai` | Vertex AI | v1.64+ |
-| `opentelemetry-instrumentation-langchain` | LangChain | v0.3.21+ |
-| `opentelemetry-instrumentation-openai-agents-v2` | OpenAI Agents | v0.3.3+ |
-| `opentelemetry-instrumentation-weaviate` | Weaviate | v3.0.0–<5.0.0 |
+| `opentelemetry-instrumentation-openai-v2` | OpenAI | openai >= v1.26.0 |
+| `opentelemetry-instrumentation-anthropic` | Anthropic | anthropic >= v0.16.0 |
+| `opentelemetry-instrumentation-claude-agent-sdk` | Claude Agent SDK | claude-agent-sdk >= v0.1.14 |
+| `opentelemetry-instrumentation-google-genai` | Google GenAI | google-genai >= v1.32.0 |
+| `opentelemetry-instrumentation-vertexai` | Vertex AI | google-cloud-aiplatform >= v1.64 |
+| `opentelemetry-instrumentation-langchain` | LangChain | langchain >= v0.3.21 |
+| `opentelemetry-instrumentation-openai-agents-v2` | OpenAI Agents | openai-agents >= v0.3.3 |
+| `opentelemetry-instrumentation-weaviate` | Weaviate | weaviate-client >= v3.0.0, < v5.0.0 |
 
 Setup: `pip install <package>` + `Instrumentor().instrument()` or CLI
 `opentelemetry-instrument`.
 
-For per-provider install commands, programmatic vs CLI setup, and supported version
+### Node.js
+
+| Package | Provider | Min SDK Version |
+| :--- | :--- | :--- |
+| `@opentelemetry/instrumentation-openai` | OpenAI | openai >= 4.19.0 |
+| `@opentelemetry/instrumentation-langchain` | LangChain | langchain >= 1.0.0 (not yet published to npm) |
+
+Setup: `npm install <package>` + register via OTel Node SDK.
+
+For per-provider install commands, upstream README links, and supported version
 details, see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/auto-instrumentation-setup.md`.
 
 ## Manual Instrumentation
 
-For languages without auto-instrumentation (Node.js, Go, Java, etc.) or when
+For languages without auto-instrumentation (Go, Java, etc.) or when
 auto-instrumentation doesn't cover your needs.
 
 Key patterns:
@@ -251,9 +262,9 @@ For context propagation details, well-known method names, and code examples, see
 ## Additional Resources
 
 ### Reference Files
-- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/auto-instrumentation-setup.md`** — Python-only: per-provider install, programmatic + CLI setup, supported versions
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/auto-instrumentation-setup.md`** — Python + Node.js: per-provider install, upstream README links, supported versions
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/manual-instrumentation.md`** — Code examples in Python/Node.js/Go for all span types
-- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/genai-attributes-catalog.md`** — Full gen_ai.* attribute reference organized by category
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/genai-attributes-catalog.md`** — Upstream semconv links + message JSON schema gotchas
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/agent-and-tool-patterns.md`** — Trace diagrams: tool-calling loop, multi-turn, nested agents, workflow
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/mcp-instrumentation.md`** — MCP context propagation, span conventions, method names, metrics
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/streaming-instrumentation.md`** — Streaming span lifecycle, TTFT/TTFC metrics, mid-stream errors, code examples

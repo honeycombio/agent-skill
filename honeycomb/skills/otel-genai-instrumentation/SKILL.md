@@ -28,6 +28,8 @@ the **observability-fundamentals** skill.
 export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 ```
 
+For Honeycomb OTLP authentication setup (including the silent-rejection pitfall), see the **otel-instrumentation** skill.
+
 ## Auto-Instrumentation (Python Only)
 
 Python is the only language with official OTel auto-instrumentation packages for GenAI
@@ -67,7 +69,10 @@ For code examples in Python, Node.js, and Go, see
 
 ## GenAI Span Types
 
-Each GenAI operation maps to a specific span kind and naming convention:
+**Span names MUST follow the pattern `"{operation} {identifier}"`.** The `gen_ai.operation.name`
+attribute and the span name prefix must match. For example, a span with
+`gen_ai.operation.name = "invoke_agent"` must be named `"invoke_agent {agent_name}"`,
+not `"mypackage.DoSomething"`.
 
 | Operation | `gen_ai.operation.name` | SpanKind | Span Name |
 | :--- | :--- | :--- | :--- |
@@ -210,6 +215,8 @@ Use cases: RAG relevance scoring, hallucination detection, output quality gates.
 | `gen_ai.server.time_per_output_token` | Histogram | s | Server decode speed |
 | `mcp.client.operation.duration` | Histogram | s | MCP client latency |
 | `mcp.server.operation.duration` | Histogram | s | MCP server latency |
+
+For the required `x-honeycomb-dataset` metrics header, see the **otel-instrumentation** skill.
 
 ## MCP Instrumentation
 

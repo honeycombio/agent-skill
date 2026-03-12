@@ -26,6 +26,16 @@ investigation), see the **observability-fundamentals** skill.
 Every OTel SDK needs three environment variables to send data to Honeycomb:
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME`.
 
+**Common pitfall — silent auth failure:** The OTLP exporters need the `x-honeycomb-team`
+header to authenticate. Without it, Honeycomb silently rejects requests — no error, no
+data. Set `OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"` or pass headers
+programmatically. If loading the key from `.env`, ensure dotenv runs before SDK init.
+
+**Metrics dataset header:** Honeycomb requires `x-honeycomb-dataset` on the metrics OTLP
+endpoint to route metrics correctly. Without it, metrics are silently dropped. Traces do
+not need this header (they route by `service.name`). Set via
+`OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_DATASET"`.
+
 For the env var values, language-specific dependencies, and setup code (Go, Python,
 Node.js, Java, Ruby, .NET, Rust), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/sdk-setup-by-language.md`.

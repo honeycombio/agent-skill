@@ -10,6 +10,12 @@ Base OTel SDK configured. Enable GenAI conventions:
 export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 ```
 
+## Span Naming Rule
+
+All GenAI span names MUST follow `"{operation} {identifier}"` — the span name prefix
+must match `gen_ai.operation.name`. Examples: `"chat gpt-4"`, `"execute_tool get_weather"`,
+`"invoke_agent research-agent"`.
+
 ## Chat/Completion Spans
 
 SpanKind: CLIENT. Span name: `chat {model}`.

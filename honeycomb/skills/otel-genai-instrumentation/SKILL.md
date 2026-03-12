@@ -97,7 +97,8 @@ including opt-in content capture fields.
 
 ### Tool Call Failures
 
-- **Span** `execute_tool`: `gen_ai.tool.name`, `gen_ai.tool.call.id`, `error.type`,
+- **Span** `execute_tool`: `gen_ai.tool.name`, `gen_ai.tool.call.id`,
+  `gen_ai.agent.name`, `gen_ai.conversation.id`, `error.type`,
   `status.code=ERROR`, duration
 - **Metric**: `gen_ai.client.operation.duration`
 - **Enable**: `gen_ai.input.messages` (tool_call + tool_call_response parts) — shows
@@ -156,7 +157,8 @@ Enables: `gen_ai.input.messages`, `gen_ai.output.messages`,
 
 - Set `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` on `execute_tool` spans
 - Set `gen_ai.input.messages` / `gen_ai.output.messages` on inference spans
-- Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning)
+- Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning);
+  `tool_call_response` uses `response` field (not `content`) for the tool result
 
 ### Privacy controls
 

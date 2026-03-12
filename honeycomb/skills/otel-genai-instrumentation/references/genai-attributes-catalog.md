@@ -159,7 +159,7 @@ structure:
   {
     "role": "tool",
     "parts": [
-      {"type": "tool_call_response", "id": "call_123", "content": "{\"temp\":72}"}
+      {"type": "tool_call_response", "id": "call_123", "response": "{\"temp\":72}"}
     ]
   },
   {
@@ -172,3 +172,6 @@ structure:
 ```
 
 Part types: `text`, `tool_call`, `tool_call_response`, `reasoning`.
+
+**Note on `tool_call_response`**: Use the `response` field (not `content`) for the tool
+result. The `content` field is reserved for `text` parts.

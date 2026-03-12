@@ -118,7 +118,7 @@ All content attributes use a JSON array of message objects:
     "parts": [
       {"type": "text", "text": "..."},
       {"type": "tool_call", "id": "call_123", "name": "fn_name", "arguments": "{}"},
-      {"type": "tool_call_response", "id": "call_123", "content": "{}"},
+      {"type": "tool_call_response", "id": "call_123", "response": "{}"},
       {"type": "reasoning", "text": "..."}
     ]
   }
@@ -151,7 +151,7 @@ All content attributes use a JSON array of message objects:
 {
   "type": "tool_call_response",
   "id": "call_abc123",
-  "content": "{\"temperature\": 72, \"unit\": \"F\"}"
+  "response": "{\"temperature\": 72, \"unit\": \"F\"}"
 }
 ```
 

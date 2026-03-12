@@ -30,7 +30,9 @@ Key attributes on each `chat`:
 
 Key attributes on each `execute_tool`:
 - `gen_ai.tool.name`, `gen_ai.tool.call.id`
+- `gen_ai.agent.name`, `gen_ai.conversation.id` (correlate tool with parent agent)
 - `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` (opt-in)
+- `error.type` on failure (exception class name or `"ToolExecutionError"` for error results)
 
 **Detecting retry loops**: If `invoke_agent` has many `execute_tool` children with the
 same `gen_ai.tool.name`, the model may be stuck. Query: GROUP BY `gen_ai.tool.name`,
@@ -123,14 +125,16 @@ Key attributes on `retrieval`:
 Model requests multiple tools simultaneously.
 
 ```
-chat gpt-4                            (CLIENT)
+invoke_agent assistant                (CLIENT)
+├── chat gpt-4                        (CLIENT, requests 3 tools)
 ├── execute_tool get_weather          (INTERNAL, concurrent)
 ├── execute_tool get_stock_price      (INTERNAL, concurrent)
-└── execute_tool get_news             (INTERNAL, concurrent)
+├── execute_tool get_news             (INTERNAL, concurrent)
+└── chat gpt-4                        (CLIENT, with tool results)
 ```
 
-All three `execute_tool` spans share the same parent and may overlap in time. The
-trace waterfall shows them running in parallel.
+All three `execute_tool` spans share the same parent (`invoke_agent`) and may overlap
+in time. The trace waterfall shows them running in parallel.
 
 ## Agent with Evaluation
 

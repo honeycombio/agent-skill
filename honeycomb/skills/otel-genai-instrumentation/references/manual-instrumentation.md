@@ -442,6 +442,12 @@ def run_agent(client, model, messages, tools, agent_name, agent_id, conversation
                     "server.port": 443,
                 },
             ) as chat_span:
+                # Capture input messages for full conversation visibility
+                chat_span.set_attribute("gen_ai.input.messages", json.dumps(
+                    [{"role": m["role"], "parts": [{"type": "text", "text": m.get("content", "")}]}
+                     for m in messages]
+                ))
+
                 response = client.chat.completions.create(
                     model=model, messages=messages, tools=tools
                 )
@@ -453,6 +459,23 @@ def run_agent(client, model, messages, tools, agent_name, agent_id, conversation
 
                 finish = response.choices[0].finish_reason
                 chat_span.set_attribute("gen_ai.response.finish_reasons", [finish])
+
+                # Capture output messages — model response + any tool call requests
+                output_parts = []
+                for choice in response.choices:
+                    msg = choice.message
+                    if msg.content:
+                        output_parts.append({"type": "text", "text": msg.content})
+                    if msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            output_parts.append({
+                                "type": "tool_call", "id": tc.id,
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            })
+                chat_span.set_attribute("gen_ai.output.messages", json.dumps(
+                    [{"role": "assistant", "parts": output_parts}]
+                ))
             # chat span is now closed
 
             if finish == "tool_calls":
@@ -519,6 +542,14 @@ async function runAgent(client, model, messages, tools, agentName, agentId, conv
             },
           },
           async (chatSpan) => {
+            // Capture input messages for full conversation visibility
+            chatSpan.setAttribute("gen_ai.input.messages", JSON.stringify(
+              messages.map((m) => ({
+                role: m.role,
+                parts: [{ type: "text", text: m.content ?? "" }],
+              }))
+            ));
+
             const resp = await client.chat.completions.create({ model, messages, tools });
             chatSpan.setAttributes({
               "gen_ai.response.model": resp.model,
@@ -528,6 +559,26 @@ async function runAgent(client, model, messages, tools, agentName, agentId, conv
             });
             totalInput += resp.usage.prompt_tokens;
             totalOutput += resp.usage.completion_tokens;
+
+            // Capture output messages — model response + any tool call requests
+            const outputParts = [];
+            const msg = resp.choices[0].message;
+            if (msg.content) {
+              outputParts.push({ type: "text", text: msg.content });
+            }
+            if (msg.tool_calls) {
+              for (const tc of msg.tool_calls) {
+                outputParts.push({
+                  type: "tool_call", id: tc.id,
+                  name: tc.function.name,
+                  arguments: tc.function.arguments,
+                });
+              }
+            }
+            chatSpan.setAttribute("gen_ai.output.messages", JSON.stringify(
+              [{ role: "assistant", parts: outputParts }]
+            ));
+
             chatSpan.end();
             return resp;
           }
@@ -608,6 +659,10 @@ func RunAgent(ctx context.Context, client *openai.Client, model string, messages
             ),
         )
 
+        // Capture input messages for full conversation visibility
+        inputJSON, _ := json.Marshal(messages)
+        chatSpan.SetAttributes(attribute.String("gen_ai.input.messages", string(inputJSON)))
+
         resp, err := client.Chat(chatCtx, model, messages, tools)
         if err != nil {
             chatSpan.SetStatus(codes.Error, err.Error())
@@ -624,6 +679,11 @@ func RunAgent(ctx context.Context, client *openai.Client, model string, messages
         )
         totalInput += resp.Usage.InputTokens
         totalOutput += resp.Usage.OutputTokens
+
+        // Capture output messages — model response + any tool call requests
+        outputJSON, _ := json.Marshal(resp.Message)
+        chatSpan.SetAttributes(attribute.String("gen_ai.output.messages", string(outputJSON)))
+
         chatSpan.End()
         // chat span is now closed
 
@@ -661,6 +721,38 @@ func RunAgent(ctx context.Context, client *openai.Client, model string, messages
     }
 }
 ```
+
+### Flushing After Agent Invocation
+
+The tool-calling loop examples above produce spans buffered by `BatchSpanProcessor`.
+**Always force-flush after the top-level agent call returns** to guarantee export.
+
+#### Python
+
+```python
+# After the agent loop completes:
+result = run_agent(client, model, messages, tools, "research-agent", "ra-1", "conv-123")
+span_processor.force_flush()  # ensure all spans are exported
+```
+
+#### Node.js
+
+```typescript
+// After the agent loop completes:
+const result = await runAgent(client, model, messages, tools, "research-agent", "ra-1", "conv-123");
+await spanProcessor.forceFlush();  // ensure all spans are exported
+```
+
+#### Go
+
+```go
+// After the agent loop completes:
+resp, err := RunAgent(ctx, client, model, messages, tools, "research-agent", "ra-1", "conv-123")
+spanProcessor.ForceFlush(ctx) // ensure all spans are exported
+```
+
+Do NOT call `forceFlush()` inside the agent loop (per chat turn) — it adds unnecessary
+latency. Flush once at the outer call boundary.
 
 Resulting trace shape:
 ```

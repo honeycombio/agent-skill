@@ -86,6 +86,118 @@ invoke_agent orchestrator             (CLIENT, root)
 to each other and one times out (`error.type=TimeoutError`), agents may be waiting on
 each other. Check `gen_ai.output.messages` for circular delegation patterns.
 
+## A2A (Agent-to-Agent) HTTP Context Propagation
+
+When agents communicate over HTTP (e.g., the A2A protocol or any REST-based delegation),
+spans from sub-agents appear as **disconnected root traces** unless you manually propagate
+W3C trace context. Unlike MCP (which uses `params._meta`), HTTP-based agent calls need
+`traceparent`/`tracestate` injected into HTTP headers.
+
+**Common symptom:** `invoke_agent orchestrator` and `invoke_agent sub-agent` appear in
+separate traces in Honeycomb, even though one delegates to the other.
+
+### The Problem
+
+Standard `fetch()` / `http.request()` calls do **not** automatically inject trace context.
+OTel's `HttpInstrumentation` patches `http.request`/`http.get` but does **not** patch
+the global `fetch()` in Node.js. On the server side, Express middleware doesn't
+automatically extract trace context from incoming headers either.
+
+### Client: Inject trace context into outgoing HTTP headers
+
+Use `propagation.inject()` to write `traceparent` into the headers before calling the
+remote agent.
+
+#### Node.js
+
+```typescript
+import { propagation, context } from "@opentelemetry/api";
+
+const headers: Record<string, string> = { "Content-Type": "application/json" };
+propagation.inject(context.active(), headers);
+
+const response = await fetch(agentUrl, {
+  method: "POST",
+  headers,
+  body: JSON.stringify(payload),
+});
+```
+
+#### Python
+
+```python
+from opentelemetry import context
+from opentelemetry.propagate import inject
+
+headers = {"Content-Type": "application/json"}
+inject(headers)
+
+response = requests.post(agent_url, headers=headers, json=payload)
+```
+
+### Server: Extract context and run handler within it
+
+Use `propagation.extract()` on incoming request headers, then wrap the handler in
+`context.with()` so all child spans inherit the caller's trace.
+
+#### Node.js (Express)
+
+```typescript
+import { propagation, context } from "@opentelemetry/api";
+
+app.post("/agents/:name/a2a", async (req, res) => {
+  const extractedContext = propagation.extract(context.active(), req.headers);
+  const result = await context.with(extractedContext, () =>
+    executor.execute(task, message),
+  );
+  res.json(result);
+});
+```
+
+#### Python (Flask / FastAPI)
+
+```python
+from opentelemetry import context as otel_context
+from opentelemetry.propagate import extract
+
+@app.post("/agents/{name}/a2a")
+async def handle_task(request: Request):
+    ctx = extract(carrier=dict(request.headers))
+    token = otel_context.attach(ctx)
+    try:
+        result = await executor.execute(task, message)
+    finally:
+        otel_context.detach(token)
+    return result
+```
+
+### Result: Connected Trace
+
+After propagation, the trace nests correctly:
+
+```
+invoke_agent orchestrator             (CLIENT, root)
+├── chat claude-sonnet-4-5-20250929              (CLIENT, decides to delegate)
+├── execute_tool send_to_researcher   (INTERNAL)
+│   └── POST /agents/researcher/a2a  (CLIENT, HTTP span with traceparent)
+│       └── invoke_agent researcher   (CLIENT, SERVER-side — same trace!)
+│           ├── chat claude-sonnet-4-5-20250929  (CLIENT)
+│           └── execute_tool search   (INTERNAL)
+├── execute_tool send_to_writer       (INTERNAL)
+│   └── POST /agents/writer/a2a      (CLIENT, HTTP span with traceparent)
+│       └── invoke_agent writer       (CLIENT, same trace!)
+│           └── chat claude-sonnet-4-5-20250929  (CLIENT)
+└── chat claude-sonnet-4-5-20250929              (CLIENT, final synthesis)
+```
+
+### Checklist
+
+- [ ] `@opentelemetry/api` imported on both client and server
+- [ ] `propagation.inject()` called before every outgoing HTTP request to another agent
+- [ ] `propagation.extract()` + `context.with()` wraps handler on the receiving side
+- [ ] `W3CTraceContextPropagator` registered (NodeSDK does this by default)
+- [ ] Verify in Honeycomb: sub-agent spans nest under the orchestrator's trace
+
 ## Workflow Pattern
 
 Deterministic steps with GenAI calls at specific points.

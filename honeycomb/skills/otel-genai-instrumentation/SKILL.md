@@ -78,6 +78,93 @@ Key patterns:
 For code examples in Python, Node.js, and Go, see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/manual-instrumentation.md`.
 
+## Span Flushing for GenAI Apps
+
+**Critical for GenAI applications.** The `BatchSpanProcessor` buffers spans (default
+5 s schedule delay). GenAI agent runs are long-lived but may exit before the batch
+flushes — crash, Ctrl+C, short CLI invocations — causing **silent span loss**.
+
+**Rule: force-flush after every top-level agent invocation.** Expose the span
+processor and call `forceFlush()` without tearing down the SDK, so subsequent
+invocations continue producing spans.
+
+### Why `shutdown()` is wrong here
+
+`sdk.shutdown()` tears down the entire pipeline — after shutdown, no new spans are
+recorded. For apps that run multiple agent invocations (polling loops, HTTP servers,
+CLI batch modes), you need spans to keep flowing. Use `forceFlush()` instead.
+
+### Python
+
+```python
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+span_processor = BatchSpanProcessor(exporter)
+provider = TracerProvider()
+provider.add_span_processor(span_processor)
+
+async def flush_telemetry():
+    """Flush pending spans without shutting down."""
+    span_processor.force_flush()
+```
+
+### Node.js
+
+```typescript
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
+
+let spanProcessor: BatchSpanProcessor | null = null;
+
+export function initTelemetry(): void {
+  // ... exporter setup ...
+  spanProcessor = new BatchSpanProcessor(traceExporter);
+  sdk = new NodeSDK({ spanProcessors: [spanProcessor], /* ... */ });
+  sdk.start();
+}
+
+export async function flushTelemetry(): Promise<void> {
+  if (spanProcessor) {
+    await spanProcessor.forceFlush();
+  }
+}
+```
+
+### Go
+
+```go
+var spanProcessor *sdktrace.BatchSpanProcessor
+
+func InitTelemetry() {
+    spanProcessor = sdktrace.NewBatchSpanProcessor(exporter)
+    // ... provider setup ...
+}
+
+func FlushTelemetry(ctx context.Context) error {
+    return spanProcessor.ForceFlush(ctx)
+}
+```
+
+### Where to call `flushTelemetry()`
+
+- **After each agent invocation** — ensures the full trace (agent + chat + tool spans)
+  is exported before moving to the next task
+- **In polling/server loops** — flush after processing each request or ticket
+- **Before `process.exit()`** — as a safety net alongside `shutdownTelemetry()`
+- **NOT inside the agent loop** — flushing per-chat-turn adds latency; flush once at
+  the outer boundary
+
+Example integration:
+```typescript
+for (const ticket of tickets) {
+  await triageIssue(ticket);   // produces invoke_agent + chat + tool spans
+  await flushTelemetry();      // ensure spans are exported before next ticket
+}
+```
+
+For complete code examples showing flush integration with tool-calling loops, see
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/manual-instrumentation.md`.
+
 ## GenAI Span Types
 
 **Span names MUST follow the pattern `"{operation} {identifier}"`.** The `gen_ai.operation.name`
@@ -100,6 +187,12 @@ not `"mypackage.DoSomething"`.
 For trace structures showing how these spans compose (tool-calling loops, multi-turn
 conversations, nested agents, workflows), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/agent-and-tool-patterns.md`.
+
+**A2A / HTTP-based agent delegation:** When agents communicate over HTTP (A2A protocol,
+REST delegation), `fetch()` does NOT auto-inject trace context — sub-agent spans appear
+as disconnected root traces. Fix: manually call `propagation.inject()` on the client and
+`propagation.extract()` + `context.with()` on the server. See the "A2A (Agent-to-Agent)
+HTTP Context Propagation" section in the reference file above.
 
 ## Required Telemetry by Failure Mode
 
@@ -155,6 +248,11 @@ including opt-in content capture fields.
 **Not optional** — required for failure modes: tool call failures, excessive planning,
 agent deadlocks.
 
+**Always add `gen_ai.input.messages` and `gen_ai.output.messages` on chat spans.**
+These attributes provide visibility into the full conversation — what the user sent,
+what the model returned, and how tool results were fed back. Without them, you can see
+that a chat span happened but not *why* the model made a particular decision.
+
 ### Auto-instrumentation (Python)
 
 ```bash
@@ -166,10 +264,15 @@ Enables: `gen_ai.input.messages`, `gen_ai.output.messages`,
 
 ### Manual instrumentation (any language)
 
-- Set `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` on `execute_tool` spans
-- Set `gen_ai.input.messages` / `gen_ai.output.messages` on inference spans
-- Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning);
-  `tool_call_response` uses `response` field (not `content`) for the tool result
+On every `chat` span:
+- **Before the call**: set `gen_ai.input.messages` — the messages array sent to the model
+- **After the call**: set `gen_ai.output.messages` — the model's response content
+
+On every `execute_tool` span:
+- Set `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result`
+
+Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning);
+`tool_call_response` uses `response` field (not `content`) for the tool result.
 
 ### Privacy controls
 
@@ -248,7 +351,8 @@ For context propagation details, well-known method names, and code examples, see
 | Gap | Workaround |
 | :--- | :--- |
 | No retry/loop count attribute | Count child spans or diff `tool.call.arguments` across siblings |
-| No inter-agent dependency | Span links + `gen_ai.conversation.id` |
+| No inter-agent dependency (in-process) | Span links + `gen_ai.conversation.id` |
+| No inter-agent dependency (HTTP/A2A) | Manual `propagation.inject()` / `extract()` — see agent-and-tool-patterns ref |
 | No retrieval sub-metrics | Custom attributes on retrieval spans |
 | `error.type` is only error signal | Custom attributes for severity/category |
 

@@ -91,6 +91,21 @@ def test_marketplace_version_matches_plugin_json(marketplace_json_path, plugin_j
         )
 
 
+def test_codeowners_exists(codeowners_path):
+    """CODEOWNERS file exists at .github/CODEOWNERS."""
+    assert codeowners_path.exists(), f"CODEOWNERS not found at {codeowners_path}"
+
+
+@pytest.mark.parametrize("skill_name", REQUIRED_SKILLS)
+def test_skill_has_codeowners_entry(codeowners_entries, skill_name):
+    """Every skill directory must have an entry in .github/CODEOWNERS."""
+    pattern = f"honeycomb/skills/{skill_name}/"
+    assert any(line.startswith(pattern) for line in codeowners_entries), (
+        f"No CODEOWNERS entry found for skill '{skill_name}'. "
+        f"Add a line starting with '{pattern}' to .github/CODEOWNERS."
+    )
+
+
 def test_skill_reference_paths_use_plugin_root(skill_md_files):
     """All references/ paths in SKILL.md files must use ${CLAUDE_PLUGIN_ROOT} prefix."""
     bare_ref_pattern = re.compile(r"`references/")

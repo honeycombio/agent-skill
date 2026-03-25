@@ -28,12 +28,13 @@ from opentelemetry.trace import SpanKind, StatusCode
 
 tracer = trace.get_tracer("genai-client")
 
-def chat(client, model, messages):
+def chat(client, model, messages, conversation_id):
     with tracer.start_as_current_span(
         f"chat {model}",
         kind=SpanKind.CLIENT,
         attributes={
             "gen_ai.operation.name": "chat",
+            "gen_ai.conversation.id": conversation_id,
             "gen_ai.system": "openai",
             "gen_ai.request.model": model,
             "gen_ai.request.max_tokens": 1024,
@@ -65,13 +66,14 @@ const { trace, SpanKind, SpanStatusCode } = require("@opentelemetry/api");
 
 const tracer = trace.getTracer("genai-client");
 
-async function chat(client, model, messages) {
+async function chat(client, model, messages, conversationId) {
   return tracer.startActiveSpan(
     `chat ${model}`,
     {
       kind: SpanKind.CLIENT,
       attributes: {
         "gen_ai.operation.name": "chat",
+        "gen_ai.conversation.id": conversationId,
         "gen_ai.system": "openai",
         "gen_ai.request.model": model,
         "gen_ai.request.max_tokens": 1024,
@@ -123,11 +125,12 @@ import (
 
 var tracer = otel.Tracer("genai-client")
 
-func Chat(ctx context.Context, client *openai.Client, model string, messages []Message) (*Response, error) {
+func Chat(ctx context.Context, client *openai.Client, model string, messages []Message, conversationID string) (*Response, error) {
     ctx, span := tracer.Start(ctx, "chat "+model,
         trace.WithSpanKind(trace.SpanKindClient),
         trace.WithAttributes(
             attribute.String("gen_ai.operation.name", "chat"),
+            attribute.String("gen_ai.conversation.id", conversationID),
             attribute.String("gen_ai.system", "openai"),
             attribute.String("gen_ai.request.model", model),
             attribute.Int("gen_ai.request.max_tokens", 1024),
@@ -163,12 +166,13 @@ SpanKind: CLIENT. Span name: `embeddings {model}`.
 ### Python
 
 ```python
-def embed(client, model, texts):
+def embed(client, model, texts, conversation_id):
     with tracer.start_as_current_span(
         f"embeddings {model}",
         kind=SpanKind.CLIENT,
         attributes={
             "gen_ai.operation.name": "embeddings",
+            "gen_ai.conversation.id": conversation_id,
             "gen_ai.system": "openai",
             "gen_ai.request.model": model,
             "gen_ai.request.encoding_formats": ["float"],
@@ -190,13 +194,14 @@ def embed(client, model, texts):
 ### Node.js
 
 ```javascript
-async function embed(client, model, texts) {
+async function embed(client, model, texts, conversationId) {
   return tracer.startActiveSpan(
     `embeddings ${model}`,
     {
       kind: SpanKind.CLIENT,
       attributes: {
         "gen_ai.operation.name": "embeddings",
+        "gen_ai.conversation.id": conversationId,
         "gen_ai.system": "openai",
         "gen_ai.request.model": model,
         "gen_ai.request.encoding_formats": ["float"],
@@ -231,12 +236,13 @@ SpanKind: CLIENT. Span name: `retrieval {data_source}`.
 ### Python
 
 ```python
-def retrieve(vector_db, data_source, query, top_k=10):
+def retrieve(vector_db, data_source, query, conversation_id, top_k=10):
     with tracer.start_as_current_span(
         f"retrieval {data_source}",
         kind=SpanKind.CLIENT,
         attributes={
             "gen_ai.operation.name": "retrieval",
+            "gen_ai.conversation.id": conversation_id,
             "gen_ai.data_source.id": data_source,
             "server.address": vector_db.host,
             "server.port": vector_db.port,

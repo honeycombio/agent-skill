@@ -30,6 +30,19 @@ export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 
 For Honeycomb OTLP authentication setup (including the silent-rejection pitfall), see the **otel-instrumentation** skill.
 
+## Prerequisites
+
+**This skill assumes your agent application is already sending telemetry to Honeycomb.** You should have:
+- OpenTelemetry SDK installed and initialized
+- OTLP exporter configured with your Honeycomb API key and dataset
+- Basic spans flowing to Honeycomb
+
+**If you haven't set this up yet:**
+1. Follow the Honeycomb documentation for your language: https://docs.honeycomb.io/get-started/
+2. Or use the **otel-instrumentation** skill for SDK setup, OTLP configuration, and Honeycomb authentication
+
+Once telemetry is flowing, return here to add GenAI-specific instrumentation.
+
 ## Auto-Instrumentation (Python and Node.js)
 
 Python and Node.js have official OTel auto-instrumentation packages for GenAI providers.
@@ -184,6 +197,29 @@ not `"mypackage.DoSomething"`.
 | Agent invocation | `invoke_agent` | CLIENT/INTERNAL | `invoke_agent {agent_name}` |
 | Workflow step | `invoke_workflow` | INTERNAL | `invoke_workflow {workflow_name}` |
 
+### Required Attributes on All GenAI Spans
+
+**Every GenAI span MUST include:**
+
+1. **`gen_ai.operation.name`** — Identifies the operation type (`chat`, `embeddings`, `execute_tool`, etc.). Without this, the span is not recognized as a GenAI operation.
+
+2. **`gen_ai.conversation.id`** — Ties operations together within a conversation or session. Without this, spans cannot be queried as part of a multi-operation workflow.
+
+Set both attributes when creating the span, not after. Use a consistent conversation_id value across all operations that belong to the same conversation thread (user request → agent invocation → chat calls → tool executions → responses).
+
+**Impact of missing these attributes:**
+- Missing `gen_ai.operation.name` → Span not recognized as GenAI operation, excluded from GenAI-specific queries and visualizations
+- Missing `gen_ai.conversation.id` → Span excluded from session queries, cannot correlate operations within a conversation, breaks multi-turn analysis
+
+**When to generate a new conversation_id:**
+- Start of a new user request or session
+- New top-level agent invocation (if not part of an ongoing conversation)
+
+**When to reuse the same conversation_id:**
+- All operations within the same conversation thread
+- Child spans (chat, tool calls) under an invoke_agent parent
+- Multi-turn conversations where context carries forward
+
 For trace structures showing how these spans compose (tool-calling loops, multi-turn
 conversations, nested agents, workflows), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/agent-and-tool-patterns.md`.
@@ -193,6 +229,44 @@ REST delegation), `fetch()` does NOT auto-inject trace context — sub-agent spa
 as disconnected root traces. Fix: manually call `propagation.inject()` on the client and
 `propagation.extract()` + `context.with()` on the server. See the "A2A (Agent-to-Agent)
 HTTP Context Propagation" section in the reference file above.
+
+## Attribute Completeness
+
+**Set all attributes for which you have data available.** The OTel GenAI semantic conventions define comprehensive attributes for each operation type — if your application has the data (model name, tokens, tool arguments, etc.), set the corresponding attribute.
+
+**Critical principle**: Don't selectively omit attributes. Incomplete instrumentation limits your ability to:
+- Identify which models and agents were involved in a trace
+- Track token usage and costs across operations
+- Debug tool call failures (missing arguments/results)
+- Understand conversation flow (missing messages)
+- Correlate agent behavior with configuration (missing request parameters)
+
+For the full attribute definitions by operation type, see the upstream semantic conventions:
+- Model operations (chat, embeddings): https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/
+- Agent operations (invoke_agent, execute_tool): https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/
+- Local reference: `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/genai-attributes-catalog.md`
+
+**What "data available" means**:
+- API response fields → set corresponding response attributes (model, tokens, finish_reasons, response_id)
+- Request parameters → set request attributes (temperature, max_tokens, top_p, etc.)
+- Agent metadata → set agent attributes (name, id, description, version)
+- Tool execution → set tool attributes (name, call_id, arguments, result)
+- Conversation context → set conversation_id on ALL GenAI spans (required, not optional) — use the same ID across all operations in a conversation thread
+
+The code examples in this skill show core attributes for each operation type. For complete coverage, consult the upstream spec and instrument every attribute your application can populate.
+
+**Impact of incomplete instrumentation**:
+
+- Missing `gen_ai.operation.name` → span not recognized as GenAI operation, excluded from GenAI queries
+- Missing `gen_ai.conversation.id` → span excluded from session queries, cannot correlate operations within a conversation
+- Missing `gen_ai.request.model` / `gen_ai.response.model` → can't identify which model was used
+- Missing `gen_ai.usage.*` tokens → can't track costs or identify expensive operations
+- Missing `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result` → can't debug why tools failed or returned unexpected results
+- Missing `gen_ai.input.messages` / `gen_ai.output.messages` → can't see what prompted a response, can't debug planning loops or hallucinations
+- Missing agent attributes → can't distinguish between agents in multi-agent systems
+- Missing request parameters → can't correlate behavior with temperature, top_p, etc.
+
+**Best practice**: Instrument completely from the start. Adding attributes later requires code changes, redeployment, and waiting for new traces to arrive.
 
 ## Required Telemetry by Failure Mode
 
@@ -248,10 +322,12 @@ including opt-in content capture fields.
 **Not optional** — required for failure modes: tool call failures, excessive planning,
 agent deadlocks.
 
-**Always add `gen_ai.input.messages` and `gen_ai.output.messages` on chat spans.**
-These attributes provide visibility into the full conversation — what the user sent,
-what the model returned, and how tool results were fed back. Without them, you can see
-that a chat span happened but not *why* the model made a particular decision.
+**Always add `gen_ai.input.messages` and `gen_ai.output.messages` on chat spans (Required).**
+These attributes are not optional — they're required for debugging tool call failures,
+excessive planning loops, and agent deadlocks in Honeycomb's GenAI UI. They provide
+visibility into the full conversation — what the user sent, what the model returned,
+and how tool results were fed back. Without them, you can see that a chat span happened
+but not *why* the model made a particular decision.
 
 ### Auto-instrumentation (Python)
 
@@ -268,8 +344,11 @@ On every `chat` span:
 - **Before the call**: set `gen_ai.input.messages` — the messages array sent to the model
 - **After the call**: set `gen_ai.output.messages` — the model's response content
 
-On every `execute_tool` span:
-- Set `gen_ai.tool.call.arguments` / `gen_ai.tool.call.result`
+On every `execute_tool` span (Required):
+- `gen_ai.tool.call.arguments` — JSON string of arguments sent to tool
+- `gen_ai.tool.call.result` — JSON string of tool result
+
+These are required (not optional) for debugging tool failures in Honeycomb.
 
 Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning);
 `tool_call_response` uses `response` field (not `content`) for the tool result.

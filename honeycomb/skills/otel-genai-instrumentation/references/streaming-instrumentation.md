@@ -60,12 +60,13 @@ duration_histogram = meter.create_histogram(
     description="Total duration of GenAI operation",
 )
 
-def chat_stream(client, model, messages):
+def chat_stream(client, model, messages, conversation_id):
     with tracer.start_as_current_span(
         f"chat {model}",
         kind=SpanKind.CLIENT,
         attributes={
             "gen_ai.operation.name": "chat",
+            "gen_ai.conversation.id": conversation_id,
             "gen_ai.system": "openai",
             "gen_ai.request.model": model,
             "server.address": "api.openai.com",
@@ -139,13 +140,14 @@ const ttfcHistogram = meter.createHistogram(
   { unit: "s", description: "Time to first chunk" }
 );
 
-async function chatStream(client, model, messages) {
+async function chatStream(client, model, messages, conversationId) {
   return tracer.startActiveSpan(
     `chat ${model}`,
     {
       kind: SpanKind.CLIENT,
       attributes: {
         "gen_ai.operation.name": "chat",
+        "gen_ai.conversation.id": conversationId,
         "gen_ai.system": "openai",
         "gen_ai.request.model": model,
         "server.address": "api.openai.com",
@@ -210,11 +212,12 @@ async function chatStream(client, model, messages) {
 ## Go Example
 
 ```go
-func ChatStream(ctx context.Context, client *openai.Client, model string, messages []Message) (string, error) {
+func ChatStream(ctx context.Context, client *openai.Client, model string, messages []Message, conversationID string) (string, error) {
     ctx, span := tracer.Start(ctx, "chat "+model,
         trace.WithSpanKind(trace.SpanKindClient),
         trace.WithAttributes(
             attribute.String("gen_ai.operation.name", "chat"),
+            attribute.String("gen_ai.conversation.id", conversationID),
             attribute.String("gen_ai.system", "openai"),
             attribute.String("gen_ai.request.model", model),
             attribute.String("server.address", "api.openai.com"),

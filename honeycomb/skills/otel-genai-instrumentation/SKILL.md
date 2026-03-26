@@ -270,14 +270,16 @@ not `"mypackage.DoSomething"`.
 - Missing `gen_ai.operation.name` → Span not recognized as GenAI operation, excluded from GenAI-specific queries and visualizations
 - Missing `gen_ai.conversation.id` → Span excluded from session queries, cannot correlate operations within a conversation, breaks multi-turn analysis
 
-**When to generate a new conversation_id:**
-- Start of a new user request or session
-- New top-level agent invocation (if not part of an ongoing conversation)
+**What is a conversation?**
 
-**When to reuse the same conversation_id:**
-- All operations within the same conversation thread
-- Child spans (chat, tool calls) under an invoke_agent parent
-- Multi-turn conversations where context carries forward
+See the [OTel GenAI spec](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/#conversation-id) for the definition. Key principle: use the same conversation.id when conversation history/context is maintained across operations.
+
+**When to use the same conversation_id:**
+- All operations sharing conversation history/context
+- Multi-turn interactions where context carries forward
+- Multiple agents participating in the same session
+
+**Example:** User asks Agent A to research a topic. Agent A delegates to Agent B, which calls tools and returns results. Agent A synthesizes and responds. All spans share the same conversation.id because they maintain shared context.
 
 For trace structures showing how these spans compose (tool-calling loops, multi-turn
 conversations, nested agents, workflows), see

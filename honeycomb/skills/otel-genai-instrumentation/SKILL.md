@@ -389,10 +389,35 @@ Before providing any configuration, **ask this question**:
 
 **If user says YES** to content capture:
 
-For auto-instrumentation (Python):
+For auto-instrumentation (Python), set the capture mode:
+
 ```bash
+# Recommended for Honeycomb: Capture as span attributes (fully queryable)
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_only
+```
+
+**Why `span_only` for Honeycomb:**
+- Content stored as span attributes → fully queryable in Honeycomb
+- Can filter, group, and visualize by message content
+- Lower overhead than `span_and_event`
+
+**Alternative modes (less common):**
+```bash
+# Events only - for high-volume scenarios where you want content in logs but not queryable
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=event_only
+
+# Both spans and events - most complete but higher overhead
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_and_event
+
+# Legacy boolean - deprecated, use span_only instead
 export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 ```
+
+**Mode comparison:**
+- `span_only` → Content in span attributes (queryable, recommended for Honeycomb)
+- `event_only` → Content in events (logging, not queryable)
+- `span_and_event` → Both (most complete, 2x overhead)
+- `true` → Legacy (maps to old behavior, deprecated)
 
 For manual instrumentation:
 - Set `gen_ai.input.messages` on chat spans (before the call)
@@ -400,7 +425,7 @@ For manual instrumentation:
 
 **If user says NO** to content capture:
 
-Do NOT set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` (leave unset or set to false).
+Do NOT set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` (leave unset).
 
 Do NOT include `gen_ai.input.messages` or `gen_ai.output.messages` in manual instrumentation.
 
@@ -425,7 +450,14 @@ made a particular decision.
 # .env
 HONEYCOMB_API_KEY=your_key_here
 OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
-OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true  # User confirmed they want this
+
+# Recommended for Honeycomb: span attributes (queryable)
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_only
+
+# Other options (uncomment one if needed):
+# OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=event_only  # Events only, not queryable
+# OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_and_event  # Both (2x overhead)
+# OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true  # Legacy (deprecated)
 ```
 
 **If user does NOT want content capture:**
@@ -438,11 +470,17 @@ OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 
 ### What Gets Captured
 
-**Content capture enabled** (`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`):
+**Content capture enabled** (span_only, event_only, or span_and_event):
 - `gen_ai.input.messages` — Full prompts sent to model
 - `gen_ai.output.messages` — Full model responses
 - `gen_ai.system_instructions` — System prompts
 - `gen_ai.tool.definitions` — Available tools
+
+**Capture mode determines where content is stored:**
+- `span_only` → Span attributes (queryable in Honeycomb, recommended)
+- `event_only` → Event attributes (logging/archival, not queryable in Honeycomb)
+- `span_and_event` → Both locations (most complete, double storage/overhead)
+- `true` → Legacy mode (deprecated, use `span_only`)
 
 **Content capture disabled** (default):
 - Model name, tokens, finish_reasons, timing — YES (always captured)

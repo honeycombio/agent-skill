@@ -19,9 +19,18 @@ metadata:
 # GenAI Instrumentation for Honeycomb
 
 Instrumenting LLM and agent applications using OTel Semantic Conventions for GenAI
-(currently v1.40.0, Development status). For base SDK setup, OTLP config, and collector
-configuration, see the **otel-instrumentation** skill. For conceptual foundations, see
+(currently v1.40.0, Development status). For conceptual foundations, see
 the **observability-fundamentals** skill.
+
+## Base OTEL Setup (Required First)
+
+**BEFORE implementing GenAI instrumentation, ensure your base OpenTelemetry configuration is complete.**
+
+Use the **otel-instrumentation** skill to configure all standard OTEL environment variables
+(OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS, OTEL_EXPORTER_OTLP_PROTOCOL,
+signal-specific endpoints, etc.) and verify basic spans are flowing to Honeycomb.
+
+GenAI instrumentation adds GenAI-specific configuration on top of that base setup.
 
 ## Critical Requirements (Non-Negotiable)
 
@@ -65,20 +74,24 @@ Without this, GenAI spans will not be created.
 GenAI apps often exit early (crash, Ctrl+C, CLI). Force flush after each top-level invocation
 to prevent silent span loss.
 
-For Honeycomb OTLP authentication setup (including the silent-rejection pitfall), see the **otel-instrumentation** skill.
+For OTLP configuration, environment variables, and Honeycomb authentication (including the
+silent-rejection pitfall), see the **otel-instrumentation** skill.
 
 ## Prerequisites
 
 **This skill assumes your agent application is already sending telemetry to Honeycomb.** You should have:
 - OpenTelemetry SDK installed and initialized
-- OTLP exporter configured with your Honeycomb API key and dataset
+- All standard OTEL environment variables configured (see **Base OTEL Setup** section above)
+- OTLP exporter configured with your Honeycomb API key
 - Basic spans flowing to Honeycomb
 
-**If you haven't set this up yet:**
-1. Follow the Honeycomb documentation for your language: https://docs.honeycomb.io/get-started/
-2. Or use the **otel-instrumentation** skill for SDK setup, OTLP configuration, and Honeycomb authentication
+**If you haven't set this up yet, use the otel-instrumentation skill first** for:
+- SDK setup and dependencies
+- OTEL environment variables (OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_*, etc.)
+- OTLP configuration and Honeycomb authentication
+- Verification that spans are flowing
 
-Once telemetry is flowing, return here to add GenAI-specific instrumentation.
+Once base telemetry is working, return here to add GenAI-specific instrumentation.
 
 ## Auto-Instrumentation (Python and Node.js)
 
@@ -448,13 +461,19 @@ made a particular decision.
 **If user wants content capture:**
 ```bash
 # .env
-HONEYCOMB_API_KEY=your_key_here
+
+# Base OTEL setup - see otel-instrumentation skill for:
+#   OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT,
+#   OTEL_EXPORTER_OTLP_HEADERS, OTEL_EXPORTER_OTLP_PROTOCOL, etc.
+
+# GenAI-specific configuration (REQUIRED)
 OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 
+# Content capture (OPTIONAL - ask user first)
 # Recommended for Honeycomb: span attributes (queryable)
 OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_only
 
-# Other options (uncomment one if needed):
+# Other content capture options (uncomment one if needed):
 # OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=event_only  # Events only, not queryable
 # OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_and_event  # Both (2x overhead)
 # OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true  # Legacy (deprecated)
@@ -463,7 +482,12 @@ OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_only
 **If user does NOT want content capture:**
 ```bash
 # .env
-HONEYCOMB_API_KEY=your_key_here
+
+# Base OTEL setup - see otel-instrumentation skill for:
+#   OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_ENDPOINT,
+#   OTEL_EXPORTER_OTLP_HEADERS, OTEL_EXPORTER_OTLP_PROTOCOL, etc.
+
+# GenAI-specific configuration (REQUIRED)
 OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 # OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT not set (disabled by default)
 ```
@@ -607,6 +631,6 @@ For context propagation details, well-known method names, and code examples, see
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/content-capture-setup.md`** — Env var + manual setup, message JSON schemas, privacy controls
 
 ### Cross-References
-- For base SDK setup, OTLP config, collector, and sampling: **otel-instrumentation** skill
+- **BEFORE using this skill**: Use **otel-instrumentation** for base SDK setup, all OTEL environment variables (OTEL_SERVICE_NAME, OTEL_EXPORTER_OTLP_*, OTEL_EXPORTER_OTLP_HEADERS, etc.), OTLP config, collector, and sampling
 - For conceptual foundations of wide events and high cardinality: **observability-fundamentals** skill
 - After instrumenting, use the **query-patterns** skill to verify GenAI data in Honeycomb

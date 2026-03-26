@@ -23,12 +23,55 @@ investigation), see the **observability-fundamentals** skill.
 
 ## OTLP Configuration and SDK Setup
 
-Every OTel SDK needs three environment variables to send data to Honeycomb:
-`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_SERVICE_NAME`.
+Every OTel SDK needs these environment variables to send data to Honeycomb:
 
-**Common pitfall — silent auth failure:** The OTLP exporters need the `x-honeycomb-team`
-header to authenticate. Without it, Honeycomb silently rejects requests — no error, no
-data. Set `OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"` or pass headers
+### Required Environment Variables
+
+**Base configuration:**
+```bash
+OTEL_SERVICE_NAME=your-service-name
+OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
+OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
+```
+
+**Optional but recommended:**
+```bash
+# Protocol selection (default: http/protobuf)
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf  # or grpc
+
+# Signal-specific endpoints (override base endpoint for specific signals)
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://api.honeycomb.io/v1/traces
+OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://api.honeycomb.io/v1/metrics
+```
+
+**For metrics (required if sending metrics):**
+```bash
+OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_DATASET"
+```
+
+### Protocol Selection
+
+`OTEL_EXPORTER_OTLP_PROTOCOL` determines the wire format and transport:
+- `http/protobuf` (default, recommended) — HTTP with protobuf encoding
+- `grpc` — gRPC with protobuf encoding
+- `http/json` — HTTP with JSON encoding (larger payload, slower)
+
+Use `http/protobuf` unless you have specific infrastructure requirements for gRPC.
+
+### Signal-Specific Endpoints
+
+By default, OTel SDKs append `/v1/traces` and `/v1/metrics` to `OTEL_EXPORTER_OTLP_ENDPOINT`.
+Use signal-specific endpoint vars to override:
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` — full URL for traces (including `/v1/traces`)
+- `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` — full URL for metrics (including `/v1/metrics`)
+
+Useful when routing signals to different backends or using non-standard endpoints.
+
+### Common Pitfalls
+
+**Silent auth failure:** The OTLP exporters need the `x-honeycomb-team` header to
+authenticate. Without it, Honeycomb silently rejects requests — no error, no data. Set
+`OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"` or pass headers
 programmatically. If loading the key from `.env`, ensure dotenv runs before SDK init.
 
 **Metrics dataset header:** Honeycomb requires `x-honeycomb-dataset` on the metrics OTLP

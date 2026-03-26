@@ -5,13 +5,32 @@ traces to Honeycomb.
 
 ## Environment Variables (All Languages)
 
+### Required
+
 ```bash
+export OTEL_SERVICE_NAME="your-service-name"
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io"
 export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
-export OTEL_SERVICE_NAME="your-service-name"
 ```
 
 EU endpoint: `https://api.eu1.honeycomb.io`
+
+### Optional (Recommended)
+
+```bash
+# Protocol selection (default: http/protobuf)
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"  # or "grpc"
+
+# Signal-specific endpoints (override base endpoint)
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="https://api.honeycomb.io/v1/traces"
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="https://api.honeycomb.io/v1/metrics"
+```
+
+### For Metrics (Required if sending metrics)
+
+```bash
+export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_METRICS_DATASET"
+```
 
 ### Honeycomb Authentication Pitfall
 

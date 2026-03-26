@@ -23,10 +23,47 @@ Instrumenting LLM and agent applications using OTel Semantic Conventions for Gen
 configuration, see the **otel-instrumentation** skill. For conceptual foundations, see
 the **observability-fundamentals** skill.
 
-**Important:** All `gen_ai.*` conventions require opt-in:
+## Critical Requirements (Non-Negotiable)
+
+**BEFORE implementing any GenAI instrumentation, complete these steps in order:**
+
+### Step 1: Ask About Content Capture (FIRST!)
+
+**Stop and ask the user this question BEFORE writing any code or configuration:**
+
+> "Do you want to capture the actual prompts and model responses in your traces?
+>
+> **Enabling content capture:**
+> - ✅ Helps debug tool call failures, planning loops, and agent deadlocks
+> - ✅ Lets you see why the model made specific decisions
+> - ❌ Captures potentially sensitive content (user prompts, model responses)
+> - ❌ May contain PII, proprietary data, or confidential information
+>
+> **Recommended for:** debugging/development, non-sensitive data, or if you have filtering
+>
+> **Not recommended for:** production with sensitive data, PII/health/financial info"
+
+**Record their answer** — you'll need it when configuring instrumentation.
+
+### Step 2: Enable GenAI Conventions (REQUIRED)
+
 ```bash
 export OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
 ```
+
+Without this, GenAI spans will not be created.
+
+### Step 3: Set Required Attributes on EVERY Span (REQUIRED)
+
+- `gen_ai.operation.name` — e.g., `chat`, `execute_tool`, `invoke_agent`
+- `gen_ai.conversation.id` — same value for all spans in a conversation
+
+**Impact if missing**: Spans won't be recognized as GenAI operations and cannot be queried by session.
+
+### Step 4: Implement force_flush() (REQUIRED)
+
+GenAI apps often exit early (crash, Ctrl+C, CLI). Force flush after each top-level invocation
+to prevent silent span loss.
 
 For Honeycomb OTLP authentication setup (including the silent-rejection pitfall), see the **otel-instrumentation** skill.
 
@@ -199,13 +236,22 @@ not `"mypackage.DoSomething"`.
 
 ### Required Attributes on All GenAI Spans
 
-**Every GenAI span MUST include:**
+**CRITICAL: Every GenAI span MUST include these two attributes. This is non-negotiable.**
 
-1. **`gen_ai.operation.name`** — Identifies the operation type (`chat`, `embeddings`, `execute_tool`, etc.). Without this, the span is not recognized as a GenAI operation.
+1. **`gen_ai.operation.name`** — Identifies the operation type (`chat`, `embeddings`, `execute_tool`, `invoke_agent`, etc.).
+   - **Without this**: The span is not recognized as a GenAI operation and will be excluded from GenAI-specific queries and visualizations in Honeycomb
+   - **Set on EVERY span**: chat, execute_tool, invoke_agent, embeddings, retrieval, etc.
 
-2. **`gen_ai.conversation.id`** — Ties operations together within a conversation or session. Without this, spans cannot be queried as part of a multi-operation workflow.
+2. **`gen_ai.conversation.id`** — Ties operations together within a conversation or session.
+   - **Without this**: Spans cannot be queried as part of a multi-operation workflow, breaking session-level analysis
+   - **Use the SAME value** across all operations in a conversation thread (user request → agent invocation → chat calls → tool executions → responses)
+   - Generate once at the start of a conversation, propagate to all operations
 
-Set both attributes when creating the span, not after. Use a consistent conversation_id value across all operations that belong to the same conversation thread (user request → agent invocation → chat calls → tool executions → responses).
+**When to set:** When creating the span (in the span attributes), not after.
+
+**How to propagate conversation_id:**
+- In-process: Pass as parameter or store in context
+- HTTP/A2A: Include in request payload or propagate via headers
 
 **Impact of missing these attributes:**
 - Missing `gen_ai.operation.name` → Span not recognized as GenAI operation, excluded from GenAI-specific queries and visualizations
@@ -268,19 +314,19 @@ The code examples in this skill show core attributes for each operation type. Fo
 
 **Best practice**: Instrument completely from the start. Adding attributes later requires code changes, redeployment, and waiting for new traces to arrive.
 
-## Required Telemetry by Failure Mode
+## Telemetry by Failure Mode
 
-Core Honeycomb section. For each failure mode, **all listed telemetry is required** —
-including opt-in content capture fields.
+For each failure mode, the listed telemetry enables effective debugging. Items marked
+**[Content Capture]** require enabling content capture — ask the user before enabling these.
 
 ### Tool Call Failures
 
 - **Span** `execute_tool`: `gen_ai.tool.name`, `gen_ai.tool.call.id`,
   `gen_ai.agent.name`, `gen_ai.conversation.id`, `error.type`,
-  `status.code=ERROR`, duration
+  `status.code=ERROR`, duration, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`
 - **Metric**: `gen_ai.client.operation.duration`
-- **Enable**: `gen_ai.input.messages` (tool_call + tool_call_response parts) — shows
-  arguments sent and error received
+- **[Content Capture]**: `gen_ai.input.messages` (tool_call + tool_call_response parts) —
+  shows full context of tool calls (optional, requires user consent)
 
 ### Network Failures During Retrieval
 
@@ -299,10 +345,11 @@ including opt-in content capture fields.
 ### Excessive Planning / Retry Loops
 
 - **Parent** `invoke_agent`: `gen_ai.agent.name`, `gen_ai.usage.input_tokens`, duration
-- **Children** `execute_tool`: `gen_ai.tool.name` + `gen_ai.tool.call.arguments` +
+- **Children** `execute_tool`: `gen_ai.tool.name`, `gen_ai.tool.call.arguments`,
   `gen_ai.tool.call.result`
 - **Metric**: `gen_ai.client.token.usage`
-- **Enable**: `gen_ai.output.messages` — model reasoning reveals loop cause
+- **[Content Capture]**: `gen_ai.output.messages` — model reasoning reveals loop cause
+  (optional but very helpful, requires user consent)
 
 ### Slow Retrieval
 
@@ -315,51 +362,119 @@ including opt-in content capture fields.
 - **Span** `invoke_agent`: `gen_ai.agent.name`, `gen_ai.agent.id`,
   `gen_ai.conversation.id`, `error.type=TimeoutError`, span links, duration
 - **Metric**: `gen_ai.client.operation.duration`
-- **Enable**: `gen_ai.output.messages` (tool_call parts) — reveals circular delegation
+- **[Content Capture]**: `gen_ai.output.messages` (tool_call parts) — reveals circular
+  delegation (optional but very helpful, requires user consent)
 
-## Enabling Content Capture
+## Content Capture (Ask User First)
 
-**Not optional** — required for failure modes: tool call failures, excessive planning,
-agent deadlocks.
+**CRITICAL: Do NOT enable content capture without asking the user first.**
 
-**Always add `gen_ai.input.messages` and `gen_ai.output.messages` on chat spans (Required).**
-These attributes are not optional — they're required for debugging tool call failures,
-excessive planning loops, and agent deadlocks in Honeycomb's GenAI UI. They provide
-visibility into the full conversation — what the user sent, what the model returned,
-and how tool results were fed back. Without them, you can see that a chat span happened
-but not *why* the model made a particular decision.
+### Step 1: Ask the User
 
-### Auto-instrumentation (Python)
+Before providing any configuration, **ask this question**:
 
+> "Do you want to capture the actual prompts and model responses in your traces?
+>
+> **Enabling content capture:**
+> - ✅ Helps debug tool call failures, planning loops, and agent deadlocks
+> - ✅ Lets you see why the model made specific decisions
+> - ❌ Captures potentially sensitive content (user prompts, model responses)
+> - ❌ May contain PII, proprietary data, or confidential information
+>
+> Recommended if: debugging/development, non-sensitive data, or you have filtering in place
+>
+> Not recommended if: production with sensitive data, PII/health/financial info, no filtering"
+
+### Step 2: Configure Based on Answer
+
+**If user says YES** to content capture:
+
+For auto-instrumentation (Python):
 ```bash
 export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
 ```
 
-Enables: `gen_ai.input.messages`, `gen_ai.output.messages`,
-`gen_ai.system_instructions`, `gen_ai.tool.definitions`.
+For manual instrumentation:
+- Set `gen_ai.input.messages` on chat spans (before the call)
+- Set `gen_ai.output.messages` on chat spans (after the call)
 
-### Manual instrumentation (any language)
+**If user says NO** to content capture:
 
-On every `chat` span:
-- **Before the call**: set `gen_ai.input.messages` — the messages array sent to the model
-- **After the call**: set `gen_ai.output.messages` — the model's response content
+Do NOT set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` (leave unset or set to false).
 
-On every `execute_tool` span (Required):
-- `gen_ai.tool.call.arguments` — JSON string of arguments sent to tool
-- `gen_ai.tool.call.result` — JSON string of tool result
+Do NOT include `gen_ai.input.messages` or `gen_ai.output.messages` in manual instrumentation.
 
-These are required (not optional) for debugging tool failures in Honeycomb.
+**ALWAYS include regardless of content capture setting:**
+- `gen_ai.tool.call.arguments` on execute_tool spans
+- `gen_ai.tool.call.result` on execute_tool spans
+
+Tool arguments/results are essential for debugging and are typically less sensitive than
+full conversation content.
+
+### What Content Capture Provides
+
+When enabled, `gen_ai.input.messages` and `gen_ai.output.messages` show the full
+conversation — what the user sent, what the model returned, and how tool results were
+fed back. Without them, you can see that a chat span happened but not *why* the model
+made a particular decision.
+
+### Example: .env Configuration
+
+**If user wants content capture:**
+```bash
+# .env
+HONEYCOMB_API_KEY=your_key_here
+OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true  # User confirmed they want this
+```
+
+**If user does NOT want content capture:**
+```bash
+# .env
+HONEYCOMB_API_KEY=your_key_here
+OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental
+# OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT not set (disabled by default)
+```
+
+### What Gets Captured
+
+**Content capture enabled** (`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`):
+- `gen_ai.input.messages` — Full prompts sent to model
+- `gen_ai.output.messages` — Full model responses
+- `gen_ai.system_instructions` — System prompts
+- `gen_ai.tool.definitions` — Available tools
+
+**Content capture disabled** (default):
+- Model name, tokens, finish_reasons, timing — YES (always captured)
+- Prompt/response content — NO
+- Tool arguments/results — YES (always recommended)
 
 Message JSON schema: `role` + `parts` (text, tool_call, tool_call_response, reasoning);
 `tool_call_response` uses `response` field (not `content`) for the tool result.
 
-### Privacy controls
+### Privacy Controls (If Content Capture Enabled)
 
-- **Filtering**: select which messages to capture
-- **Truncation**: limit content size
-- **Hooks**: route to separate access-controlled storage
-- **Recommendation**: enable everywhere with filtering; full content in non-prod,
-  filtered in prod
+If the user enables content capture, recommend these additional safeguards:
+
+- **Filtering**: Capture selectively (e.g., exclude messages with PII)
+- **Truncation**: Limit content size (e.g., first 500 chars only)
+- **Hooks**: Route to separate access-controlled storage
+- **Access control**: Restrict who can query message content in Honeycomb
+- **Environment-based**: Full content in dev/test, disabled or filtered in prod
+
+Example filtering pattern (Python):
+```python
+# Only capture if no PII detected
+if not contains_pii(message_content):
+    span.set_attribute("gen_ai.input.messages", json.dumps(messages))
+```
+
+Example truncation (any language):
+```python
+# Limit to first 500 characters
+truncated = json.dumps(messages)[:500]
+span.set_attribute("gen_ai.input.messages", truncated)
+```
 
 For complete setup including message JSON schemas, per-provider examples, and privacy
 patterns, see

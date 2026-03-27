@@ -272,24 +272,51 @@ not `"mypackage.DoSomething"`.
 
 **What is a conversation?**
 
+A conversation is a **customer session or user interaction**, NOT a single LLM call. One conversation contains:
+- Multiple user turns/messages
+- All LLM calls handling those turns
+- All tool executions triggered by those LLM calls
+- All agent invocations within that session
+
 See the [OTel GenAI spec](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/#conversation-id) for the definition. Key principle: use the same conversation.id when conversation history/context is maintained across operations.
 
 **When to use the same conversation_id:**
-- All operations sharing conversation history/context
-- Multi-turn interactions where context carries forward
+- All operations within a single customer session
+- All turns in a multi-turn interaction
+- All LLM calls handling those turns
+- All tool executions and agent invocations within that session
 - Multiple agents participating in the same session
 
-**Example:** User asks Agent A to research a topic. Agent A delegates to Agent B, which calls tools and returns results. Agent A synthesizes and responds. All spans share the same conversation.id because they maintain shared context.
+**Example:** User starts a support session. Over the next 10 minutes they send 5 messages. The assistant makes 15 LLM calls and executes 8 tools to handle those messages. ALL of these spans share the SAME conversation.id because they're part of one customer session.
+
+**Common mistake:** Generating a new conversation_id for each LLM call. This breaks session-level analysis. Generate conversation_id ONCE at session start, reuse for all operations until session ends.
 
 For trace structures showing how these spans compose (tool-calling loops, multi-turn
 conversations, nested agents, workflows), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-genai-instrumentation/references/agent-and-tool-patterns.md`.
 
 **A2A / HTTP-based agent delegation:** When agents communicate over HTTP (A2A protocol,
-REST delegation), `fetch()` does NOT auto-inject trace context — sub-agent spans appear
-as disconnected root traces. Fix: manually call `propagation.inject()` on the client and
-`propagation.extract()` + `context.with()` on the server. See the "A2A (Agent-to-Agent)
-HTTP Context Propagation" section in the reference file above.
+REST delegation), manually propagate both trace context (via headers) AND conversation.id
+(via payload). Client: `propagation.inject()` + include conversation.id in request body.
+Server: `propagation.extract()` + `context.with()` + extract conversation.id from payload
+and pass to all operations. See the "A2A (Agent-to-Agent) HTTP Context Propagation"
+section in the reference file above.
+
+## Generating and Propagating Conversation ID
+
+Generate conversation_id at your application's **session boundary**:
+- Chat apps: when user opens new chat/thread
+- Support systems: when customer starts session
+- CLI tools: at command invocation
+- HTTP APIs: when session/conversation is created
+- Bots: when user starts thread/DM
+
+Pass the SAME conversation_id to all operations within that session — all user turns, all LLM calls handling those turns, all tool executions, all agent invocations.
+
+**Propagation methods:**
+- In-process: store in session object, pass as parameter
+- HTTP/microservices: include in request payload or header (`X-Conversation-ID`)
+- Bots: store in state (Redis, DB), retrieve using thread/DM ID
 
 ## Attribute Completeness
 

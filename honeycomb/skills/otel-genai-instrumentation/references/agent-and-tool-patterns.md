@@ -89,12 +89,14 @@ each other. Check `gen_ai.output.messages` for circular delegation patterns.
 ## A2A (Agent-to-Agent) HTTP Context Propagation
 
 When agents communicate over HTTP (e.g., the A2A protocol or any REST-based delegation),
-spans from sub-agents appear as **disconnected root traces** unless you manually propagate
-W3C trace context. Unlike MCP (which uses `params._meta`), HTTP-based agent calls need
-`traceparent`/`tracestate` injected into HTTP headers.
+you must propagate two things:
 
-**Common symptom:** `invoke_agent orchestrator` and `invoke_agent sub-agent` appear in
-separate traces in Honeycomb, even though one delegates to the other.
+1. **Trace context** (traceparent/tracestate) via HTTP headers — connects spans into one trace
+2. **conversation.id** via request payload — ensures all agents use the SAME conversation.id
+
+**Common symptoms:**
+- Missing trace propagation: `invoke_agent orchestrator` and `invoke_agent sub-agent` appear in separate traces
+- Missing conversation.id propagation: each agent generates new conversation.id, breaking session analysis
 
 ### The Problem
 
@@ -103,10 +105,9 @@ OTel's `HttpInstrumentation` patches `http.request`/`http.get` but does **not** 
 the global `fetch()` in Node.js. On the server side, Express middleware doesn't
 automatically extract trace context from incoming headers either.
 
-### Client: Inject trace context into outgoing HTTP headers
+### Client: Inject trace context and pass conversation.id
 
-Use `propagation.inject()` to write `traceparent` into the headers before calling the
-remote agent.
+Use `propagation.inject()` to write `traceparent` into headers. Include conversation.id in the payload so the sub-agent uses the SAME conversation.id.
 
 #### Node.js
 
@@ -119,7 +120,10 @@ propagation.inject(context.active(), headers);
 const response = await fetch(agentUrl, {
   method: "POST",
   headers,
-  body: JSON.stringify(payload),
+  body: JSON.stringify({
+    ...payload,
+    conversation_id: conversationId,  // Pass to sub-agent
+  }),
 });
 ```
 
@@ -132,13 +136,16 @@ from opentelemetry.propagate import inject
 headers = {"Content-Type": "application/json"}
 inject(headers)
 
+payload = {
+    **payload,
+    "conversation_id": conversation_id  # Pass to sub-agent
+}
 response = requests.post(agent_url, headers=headers, json=payload)
 ```
 
-### Server: Extract context and run handler within it
+### Server: Extract context and use conversation.id from payload
 
-Use `propagation.extract()` on incoming request headers, then wrap the handler in
-`context.with()` so all child spans inherit the caller's trace.
+Use `propagation.extract()` on incoming headers. Extract conversation.id from the payload and pass it to all operations — the sub-agent must use the SAME conversation.id, not generate a new one.
 
 #### Node.js (Express)
 
@@ -147,8 +154,10 @@ import { propagation, context } from "@opentelemetry/api";
 
 app.post("/agents/:name/a2a", async (req, res) => {
   const extractedContext = propagation.extract(context.active(), req.headers);
+  const conversationId = req.body.conversation_id;  // From payload
+
   const result = await context.with(extractedContext, () =>
-    executor.execute(task, message),
+    executor.execute(task, message, conversationId),  // Pass to operations
   );
   res.json(result);
 });
@@ -162,41 +171,46 @@ from opentelemetry.propagate import extract
 
 @app.post("/agents/{name}/a2a")
 async def handle_task(request: Request):
+    body = await request.json()
+    conversation_id = body["conversation_id"]  # From payload
+
     ctx = extract(carrier=dict(request.headers))
     token = otel_context.attach(ctx)
     try:
-        result = await executor.execute(task, message)
+        result = await executor.execute(task, message, conversation_id)  # Pass to operations
     finally:
         otel_context.detach(token)
     return result
 ```
 
-### Result: Connected Trace
+### Result: Connected Trace with Shared Conversation ID
 
-After propagation, the trace nests correctly:
+After propagation, the trace nests correctly and all spans share the same conversation.id:
 
 ```
-invoke_agent orchestrator             (CLIENT, root)
-├── chat claude-sonnet-4-5-20250929              (CLIENT, decides to delegate)
-├── execute_tool send_to_researcher   (INTERNAL)
-│   └── POST /agents/researcher/a2a  (CLIENT, HTTP span with traceparent)
-│       └── invoke_agent researcher   (CLIENT, SERVER-side — same trace!)
-│           ├── chat claude-sonnet-4-5-20250929  (CLIENT)
-│           └── execute_tool search   (INTERNAL)
-├── execute_tool send_to_writer       (INTERNAL)
-│   └── POST /agents/writer/a2a      (CLIENT, HTTP span with traceparent)
-│       └── invoke_agent writer       (CLIENT, same trace!)
-│           └── chat claude-sonnet-4-5-20250929  (CLIENT)
-└── chat claude-sonnet-4-5-20250929              (CLIENT, final synthesis)
+invoke_agent orchestrator             (CLIENT, root, conversation.id=abc-123)
+├── chat claude-sonnet-4-5-20250929              (CLIENT, conversation.id=abc-123)
+├── execute_tool send_to_researcher   (INTERNAL, conversation.id=abc-123)
+│   └── POST /agents/researcher/a2a  (CLIENT, headers: traceparent, body: conversation_id=abc-123)
+│       └── invoke_agent researcher   (CLIENT, same trace, conversation.id=abc-123)
+│           ├── chat claude-sonnet-4-5-20250929  (CLIENT, conversation.id=abc-123)
+│           └── execute_tool search   (INTERNAL, conversation.id=abc-123)
+├── execute_tool send_to_writer       (INTERNAL, conversation.id=abc-123)
+│   └── POST /agents/writer/a2a      (CLIENT, headers: traceparent, body: conversation_id=abc-123)
+│       └── invoke_agent writer       (CLIENT, same trace, conversation.id=abc-123)
+│           └── chat claude-sonnet-4-5-20250929  (CLIENT, conversation.id=abc-123)
+└── chat claude-sonnet-4-5-20250929              (CLIENT, conversation.id=abc-123)
 ```
 
 ### Checklist
 
 - [ ] `@opentelemetry/api` imported on both client and server
 - [ ] `propagation.inject()` called before every outgoing HTTP request to another agent
+- [ ] `conversation.id` included in request payload (client-side)
 - [ ] `propagation.extract()` + `context.with()` wraps handler on the receiving side
+- [ ] `conversation.id` extracted from payload and passed to all operations (server-side)
 - [ ] `W3CTraceContextPropagator` registered (NodeSDK does this by default)
-- [ ] Verify in Honeycomb: sub-agent spans nest under the orchestrator's trace
+- [ ] Verify in Honeycomb: sub-agent spans nest under orchestrator's trace with same conversation.id
 
 ## Workflow Pattern
 

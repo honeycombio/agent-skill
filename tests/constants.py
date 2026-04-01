@@ -14,4 +14,5 @@ REQUIRED_SKILLS = [
     "otel-migration",
     "create-honeycomb-board",
     "metrics-queries",
+    "reduce-log-volume",
 ]

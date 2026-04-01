@@ -13,4 +13,5 @@ honeycomb/skills/otel-instrumentation/          @honeycombio/developer-relations
 honeycomb/skills/otel-migration/                @honeycombio/developer-relations
 honeycomb/skills/production-investigation/      @honeycombio/developer-relations
 honeycomb/skills/query-patterns/               @honeycombio/developer-relations
+honeycomb/skills/reduce-log-volume/             @honeycombio/developer-relations
 honeycomb/skills/slos-and-triggers/             @honeycombio/developer-relations

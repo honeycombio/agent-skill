@@ -132,7 +132,7 @@ If there is already a `filter/log_templates` block in the config, **merge** the 
 
 ### Show the user:
 1. The complete `filter/log_templates` processor block (merged with any existing rules)
-2. The updated `service.pipelines.logs.processors` list showing where to insert it (after `transform/parse_json_body` and `transform/service_names` if they exist, before other transforms) — skip this if it's already in the pipeline
+2. The updated `service.pipelines.logs.processors` list showing where to insert it — place it after any processors that generate or parse the log body (e.g. `transform/parse_json_body`) but before other transforms. Skip this if it's already in the pipeline.
 3. The estimated daily event reduction
 
 **Do NOT apply changes yet.** Show the diff and ask for confirmation.

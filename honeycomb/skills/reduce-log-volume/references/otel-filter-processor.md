@@ -44,7 +44,7 @@ When converting log body patterns to regex:
 
 ## Pipeline Placement
 
-The filter processor should be placed in the logs pipeline **after** parsing/enrichment transforms but **before** export:
+The filter processor should be placed in the logs pipeline **after** any processors that generate or parse the log body (e.g. `transform/parse_json_body`) but **before** other transforms. This ensures the body field is fully populated before matching, and that you drop logs before spending CPU on further transforms.
 
 ```yaml
 service:
@@ -52,9 +52,9 @@ service:
     logs:
       receivers: [otlp]
       processors:
-        - transform/parse_json_body    # parse first
-        - transform/service_names      # enrich first
-        - filter/log_templates         # then filter
+        - transform/parse_json_body    # parse body first so filter can match on it
+        - filter/log_templates         # drop noisy logs before further transforms
+        - transform/service_names      # remaining transforms run on fewer logs
         - batch
       exporters: [otlp/honeycomb]
 ```

@@ -52,9 +52,9 @@ service:
     logs:
       receivers: [otlp]
       processors:
-        - transform/parse_json_body    # parse body first so filter can match on it
-        - filter/log_templates         # drop noisy logs before further transforms
-        - transform/service_names      # remaining transforms run on fewer logs
+        - <any processors that parse/generate the log body>
+        - filter/log_templates
+        - <any other transforms, enrichment, sampling, etc.>
         - batch
       exporters: [otlp/honeycomb]
 ```

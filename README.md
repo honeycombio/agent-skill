@@ -5,8 +5,8 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 ## What's included
 
 - **8 skills** — observability fundamentals, query patterns, production investigation, SLOs & triggers, OpenTelemetry instrumentation, OpenTelemetry migration, Beeline migration, board creation
-- **2 agents** — `honeycomb-investigator` for autonomous multi-step production debugging, `instrumentation-advisor` for codebase-to-Honeycomb gap analysis (Claude Code only)
-- **1 command** — `/honeycomb-setup` for interactive MCP server configuration (Claude Code only)
+- **2 agents** — `honeycomb-investigator` for autonomous multi-step production debugging, `instrumentation-advisor` for codebase-to-Honeycomb gap analysis (Claude Code and Cursor)
+- **1 command** — `/honeycomb-setup` for interactive MCP server configuration (Claude Code and Cursor)
 
 ## Supported Tools
 
@@ -14,6 +14,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 | Tool | Install |
 |------|---------|
 | Claude Code | `claude plugin marketplace add honeycombio/agent-skill` then `claude plugin install honeycomb` |
+| OpenAI Codex | `codex plugin marketplace add honeycombio/agent-skill` then install Honeycomb from the plugin directory |
 | Cursor | Settings > Rules > Add Remote Rule > `https://github.com/honeycombio/agent-skill` |
 | Augment (Auggie CLI) | `auggie plugin marketplace add honeycombio/agent-skill` then `auggie plugin install honeycomb` |
 | GitHub Copilot CLI | `copilot plugin install honeycombio/agent-skill:honeycomb` |
@@ -22,7 +23,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 | Tool | Skills Directory | MCP Config |
 |------|-----------------|------------|
 | VS Code Copilot | `.github/skills/` | `.vscode/mcp.json` |
-| OpenAI Codex CLI | `.agents/skills/` | `~/.codex/config.toml` |
+| OpenAI Codex CLI | `honeycomb/skills/` | `~/.codex/config.toml` |
 | Cline | Rules system | `cline_mcp_settings.json` |
 
 **MCP Server Only:**
@@ -59,6 +60,14 @@ Requires the Honeycomb MCP server to be configured (the `/honeycomb-setup` comma
 Skills will be imported into your project and available in Agent chat. Type `/` and search for a skill name to invoke it manually.
 
 See the [Cursor skills documentation](https://cursor.com/docs/context/skills) for more details.
+
+### OpenAI Codex
+
+```bash
+codex plugin marketplace add honeycombio/agent-skill
+```
+
+After adding the marketplace, restart Codex, open the plugin directory, select **Honeycomb Plugins**, and install Honeycomb.
 
 ### Augment (Auggie CLI)
 

@@ -1,0 +1,20 @@
+{
+  "name": "honeycomb-plugins",
+  "interface": {
+    "displayName": "Honeycomb Plugins"
+  },
+  "plugins": [
+    {
+      "name": "honeycomb",
+      "source": {
+        "source": "local",
+        "path": "./honeycomb"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

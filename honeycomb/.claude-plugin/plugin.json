@@ -9,6 +9,7 @@
   "homepage": "https://docs.honeycomb.io/integrations/mcp/",
   "repository": "https://github.com/honeycombio/agent-skill",
   "license": "MIT",
+  "mcpServers": "./.mcp.json",
   "keywords": [
     "honeycomb",
     "observability",

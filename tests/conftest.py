@@ -11,6 +11,16 @@ AGENTS_DIR = PLUGIN_ROOT / "agents"
 COMMANDS_DIR = PLUGIN_ROOT / "commands"
 PLUGIN_JSON = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE_JSON = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+PRODUCT_PLUGIN_JSONS = {
+    "claude": PLUGIN_ROOT / ".claude-plugin" / "plugin.json",
+    "cursor": PLUGIN_ROOT / ".cursor-plugin" / "plugin.json",
+    "codex": PLUGIN_ROOT / ".codex-plugin" / "plugin.json",
+}
+PRODUCT_MARKETPLACE_JSONS = {
+    "claude": REPO_ROOT / ".claude-plugin" / "marketplace.json",
+    "cursor": REPO_ROOT / ".cursor-plugin" / "marketplace.json",
+    "codex": REPO_ROOT / ".agents" / "plugins" / "marketplace.json",
+}
 
 
 @pytest.fixture

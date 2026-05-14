@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from tests.conftest import PLUGIN_ROOT, PRODUCT_MARKETPLACE_JSONS, PRODUCT_PLUGIN_JSONS, REPO_ROOT
 from tests.constants import REQUIRED_SKILLS
 
 
@@ -40,10 +41,67 @@ def test_commands_exist(command_md_files):
 
 
 def test_no_unexpected_top_level_dirs(plugin_root):
-    expected = {".claude-plugin", ".cursor-plugin", "skills", "agents", "commands", "hooks", "assets"}
+    expected = {
+        ".claude-plugin",
+        ".cursor-plugin",
+        ".codex-plugin",
+        "skills",
+        "agents",
+        "commands",
+        "hooks",
+        "assets",
+    }
     actual = {p.name for p in plugin_root.iterdir() if p.is_dir()}
     unexpected = actual - expected
     assert not unexpected, f"Unexpected top-level directories: {unexpected}"
+
+
+@pytest.mark.parametrize("product,path", PRODUCT_PLUGIN_JSONS.items())
+def test_product_plugin_jsons(product, path):
+    """Each supported product has a valid manifest for the shared plugin root."""
+    assert path.exists(), f"{product} plugin manifest not found at {path}"
+    data = json.loads(path.read_text())
+    assert data["name"] == "honeycomb"
+    for field in ("version", "description"):
+        assert data.get(field), f"{product} plugin.json field '{field}' is missing or empty"
+
+
+@pytest.mark.parametrize("product,path", PRODUCT_MARKETPLACE_JSONS.items())
+def test_product_marketplace_jsons(product, path):
+    """Each supported product has a repo-level marketplace entry for honeycomb/."""
+    assert path.exists(), f"{product} marketplace not found at {path}"
+    data = json.loads(path.read_text())
+    assert data["name"] == "honeycomb-plugins"
+    assert isinstance(data["plugins"], list), f"{product} plugins must be a list"
+    assert any(entry["name"] == "honeycomb" for entry in data["plugins"])
+
+
+def test_codex_marketplace_entry_shape():
+    """Codex marketplace entries include install policy metadata."""
+    data = json.loads(PRODUCT_MARKETPLACE_JSONS["codex"].read_text())
+    entry = next(item for item in data["plugins"] if item["name"] == "honeycomb")
+    assert entry["source"] == {"source": "local", "path": "./honeycomb"}
+    assert entry["policy"]["installation"] == "AVAILABLE"
+    assert entry["policy"]["authentication"] == "ON_INSTALL"
+    assert entry["category"]
+    assert (REPO_ROOT / entry["source"]["path"]).resolve().is_dir()
+
+
+def test_cursor_marketplace_source_shape():
+    """Cursor marketplace source is relative to the repo root."""
+    data = json.loads(PRODUCT_MARKETPLACE_JSONS["cursor"].read_text())
+    entry = next(item for item in data["plugins"] if item["name"] == "honeycomb")
+    assert entry["source"] == "honeycomb"
+    assert (REPO_ROOT / entry["source"]).resolve().is_dir()
+
+
+def test_product_mcp_configs():
+    """Claude/Codex and Cursor load MCP from their product-specific filenames."""
+    claude_codex = json.loads((PLUGIN_ROOT / ".mcp.json").read_text())
+    cursor = json.loads((PLUGIN_ROOT / "mcp.json").read_text())
+    assert claude_codex["honeycomb"]["type"] == "http"
+    assert claude_codex["honeycomb"]["url"].startswith("https://mcp.honeycomb.io/")
+    assert cursor["mcpServers"]["honeycomb"] == claude_codex["honeycomb"]
 
 
 def test_marketplace_json_exists(marketplace_json_path):

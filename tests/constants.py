@@ -13,4 +13,5 @@ REQUIRED_SKILLS = [
     "observability-fundamentals",
     "otel-migration",
     "create-honeycomb-board",
+    "metrics-queries",
 ]

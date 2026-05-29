@@ -1,31 +1,9 @@
 ---
 name: create-honeycomb-board
-description: >
-  Design and then create a board (dashboard) in Honeycomb with queries and SLOs.
-  Trigger phrases: "create a board", "make a board", "build a dashboard",
-  "create a Honeycomb board", "make a dashboard in Honeycomb",
-  "set up a board", "dashboard for my service", "visualize service health",
-  "golden signals dashboard", "set up monitoring board",
-  or any request to design and create or build a Honeycomb board or dashboard.
+description: "Design and create boards (dashboards) in Honeycomb — configure query visualizations (heatmaps, stat panels, line charts), add SLO widgets, arrange grid layout with preset filters and tags, and present the plan for user approval before the irreversible create_board call. Trigger phrases: \"create a board\", \"make a board\", \"build a dashboard\", \"create a Honeycomb board\", \"make a dashboard in Honeycomb\", \"set up a board\", \"dashboard for my service\", \"visualize service health\", \"golden signals dashboard\", \"set up monitoring board\", or any request to design and create or build a Honeycomb board or dashboard."
 metadata:
   version: "1.0.0"
-allowed-tools:
-  - mcp__honeycomb__create_board
-  - mcp__honeycomb__run_query
-  - mcp__honeycomb__get_query_results
-  - mcp__honeycomb__get_workspace_context
-  - mcp__honeycomb__get_environment
-  - mcp__honeycomb__get_dataset
-  - mcp__honeycomb__get_dataset_columns
-  - mcp__honeycomb__find_columns
-  - mcp__honeycomb__find_queries
-  - mcp__honeycomb__get_slos
-  - mcp__honeycomb__get_triggers
-  - mcp__honeycomb__list_boards
-  - Read
-  - Grep
-  - Glob
-  - AskUserQuestion
+allowed-tools: "mcp__honeycomb__create_board, mcp__honeycomb__run_query, mcp__honeycomb__get_query_results, mcp__honeycomb__get_workspace_context, mcp__honeycomb__get_environment, mcp__honeycomb__get_dataset, mcp__honeycomb__get_dataset_columns, mcp__honeycomb__find_columns, mcp__honeycomb__find_queries, mcp__honeycomb__get_slos, mcp__honeycomb__get_triggers, mcp__honeycomb__list_boards, Read, Grep, Glob, AskUserQuestion"
 ---
 
 # Create a Honeycomb Board
@@ -33,11 +11,11 @@ allowed-tools:
 Build a board (dashboard) in Honeycomb using the `create_board` MCP tool.
 There is no update tool — define it well before creating.
 
-When building a board, think about the purpose and time frame involved. Some examples:
+When building a board, match the purpose to the time frame:
 
-- a board for a service. This should be timeless, looking at the service's health, performance, and business metrics. Do not do any problem diagnosis or investigation when building this board. Do not express opinions or summarize graphs in text panels. The board should be a representation of the service's health at whatever moment someone looks at it.
-- a board for a feature. This should look at the feature's usage trends, and its impact on the business. This board would have a time frame of 7 days, and would not include any infrastructure metrics or service dependencies.
-- a board for a problem. This might be created during an incident, or afterward. This one would have a time frame specific to the incident. It would include investigations, and your opinions about what is happening. Patterns of what to look for are appropriate here.
+- **Service board** — Timeless health view (health, performance, business metrics). No diagnosis or opinions; represent the service's state at whatever moment someone looks at it.
+- **Feature board** — Usage trends and business impact over 7 days. No infrastructure metrics or service dependencies.
+- **Problem board** — Incident-scoped time frame. Include investigations, opinions on what is happening, and patterns to watch for.
 
 ## Workflow
 

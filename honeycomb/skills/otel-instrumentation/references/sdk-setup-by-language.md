@@ -112,6 +112,47 @@ java -javaagent:opentelemetry-javaagent.jar \
 - No code changes required for basic tracing
 - Add custom spans via OTel API for business logic
 
+### Running locally with `spring-boot:run` (Maven)
+
+`spring-boot:run` forks a child JVM for the app. That child JVM does not inherit
+`MAVEN_OPTS`, and a parent pom can override `-Dspring-boot.run.jvmArguments` on the
+command line, so neither of those approaches reliably loads the agent.
+
+**Preferred for most apps:** build first, then run the jar directly:
+
+```bash
+mvn package -DskipTests
+java -javaagent:opentelemetry-javaagent.jar -jar target/your-app.jar
+```
+
+**Caveat:** some frameworks (e.g. Broadleaf Commerce) use Spring's Load-Time Weaver
+(`spring-instrument.jar`) to weave in entity fields at class-load time. Without it the
+schema is incomplete and startup fails. These apps require Spring's LTW agent alongside
+the OTel agent:
+
+```bash
+mvn package -DskipTests
+cd target && jar -xf your-app.jar   # explode the fat JAR
+java -javaagent:spring-instrument.jar \
+     -javaagent:opentelemetry-javaagent.jar \
+     -cp "BOOT-INF/classes:BOOT-INF/lib/*" \
+     com.example.Application
+```
+
+For apps that don't need LTW, the simpler `java -javaagent:... -jar your-app.jar` works.
+
+**For `spring-boot:run`:** use `JAVA_TOOL_OPTIONS`, which is inherited by all JVM
+processes regardless of plugin configuration:
+
+```bash
+export JAVA_TOOL_OPTIONS="-javaagent:/path/to/opentelemetry-javaagent.jar"
+mvn spring-boot:run
+```
+
+Be aware that `JAVA_TOOL_OPTIONS` also applies to Maven's own JVM and any other JVMs
+Maven forks (compiler, test runner, etc.), producing extra spans from build tooling under
+the same `OTEL_SERVICE_NAME`.
+
 ## Ruby
 
 ### Dependencies

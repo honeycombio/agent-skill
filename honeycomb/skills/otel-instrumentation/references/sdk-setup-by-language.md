@@ -167,3 +167,28 @@ opentelemetry_sdk = { version = "0.21", features = ["rt-tokio"] }
 - Rust uses OTLP exporter directly
 - No auto-instrumentation; all spans are manual
 - Use `tracing` crate with `tracing-opentelemetry` for ergonomic instrumentation
+
+## Testing Locally Without Honeycomb
+
+Before pointing your SDK at Honeycomb, verify that spans are being produced and
+structured correctly using a local OTel Collector. Point your SDK at the local
+collector instead of Honeycomb:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+export OTEL_SERVICE_NAME="your-service"
+# No OTEL_EXPORTER_OTLP_HEADERS needed — the local collector has no auth
+```
+
+Then start the collector:
+
+```bash
+./scripts/start-collector.sh --no-honeycomb
+```
+
+Spans appear in the debug output (stdout) and are written to `./otelcol-traces.ndjson`,
+`./otelcol-logs.ndjson`, and `./otelcol-metrics.ndjson` on the host.
+
+For full setup instructions, available flags, and `jq` commands for inspecting the
+NDJSON output, see
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/local-collector-debug-test.md`.

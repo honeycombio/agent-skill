@@ -44,7 +44,7 @@ pip install opentelemetry-sdk \
             opentelemetry-instrumentation-sqlalchemy
 ```
 
-### Auto-instrumentation (recommended)
+### Auto-instrumentation (recommended for WSGI apps)
 ```bash
 opentelemetry-instrument python app.py
 ```
@@ -63,6 +63,10 @@ processor = BatchSpanProcessor(OTLPSpanExporter())
 provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 ```
+
+For ASGI frameworks (FastAPI, Starlette, NiceGUI), async SQLAlchemy patterns,
+middleware-based attribute enrichment, and a full instrumentation package reference,
+see `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/python.md`.
 
 ## Node.js
 

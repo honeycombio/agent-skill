@@ -90,33 +90,35 @@ uv add opentelemetry-sdk opentelemetry-exporter-otlp-proto-http \
 
 ## Programmatic Setup for ASGI Apps (FastAPI / Starlette)
 
-Create a `telemetry.py` module and call it before routers are mounted.
+Create a `telemetry.py` module. The SDK wiring is always the same; the
+auto-instrumentation calls depend on what the app actually uses — inspect the
+codebase and choose from the **Instrumentation Package Reference** above.
 
 ```python
+import os
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-import os
+# Import only the instrumentors that match the libraries this app uses.
+# Check pyproject.toml / requirements.txt, then see Package Reference above.
 
 
-def configure_opentelemetry(sqlalchemy_engine=None):
+def configure_opentelemetry(**kwargs):
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not endpoint:
-        return  # no-op when unconfigured — safe for local dev without credentials
+        return  # no-op when unconfigured
 
     resource = Resource.create()  # reads OTEL_SERVICE_NAME + OTEL_RESOURCE_ATTRIBUTES
     provider = TracerProvider(resource=resource)
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
 
-    HTTPXClientInstrumentor().instrument()
-    if sqlalchemy_engine:
-        SQLAlchemyInstrumentor().instrument(engine=sqlalchemy_engine.sync_engine)
+    # Call .instrument() for each library the app uses.
+    # Pass any required handles (e.g. engine.sync_engine for SQLAlchemy async — see
+    # the "Critical: async SQLAlchemy" section above).
 
 
 def instrument_app(app):
@@ -125,8 +127,8 @@ def instrument_app(app):
 
 Call order in `main.py`:
 ```python
-# 1. Configure SDK (before app is created)
-configure_opentelemetry(sqlalchemy_engine=engine)
+# 1. Configure SDK and library auto-instrumentation (before app is created)
+configure_opentelemetry(...)
 
 app = FastAPI(lifespan=lifespan)
 

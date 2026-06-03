@@ -117,8 +117,11 @@ def configure_opentelemetry(**kwargs):
     trace.set_tracer_provider(provider)
 
     # Call .instrument() for each library the app uses.
-    # Pass any required handles (e.g. engine.sync_engine for SQLAlchemy async — see
-    # the "Critical: async SQLAlchemy" section above).
+    # SQLAlchemy example — note .sync_engine (async engines crash without it):
+    #   SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
+    # httpx example:
+    #   HTTPXClientInstrumentor().instrument()
+    # See Package Reference above for the full list.
 
 
 def instrument_app(app):

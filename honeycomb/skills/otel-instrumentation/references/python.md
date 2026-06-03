@@ -121,6 +121,28 @@ def configure_opentelemetry(sqlalchemy_engine=None):
 
 def instrument_app(app):
     FastAPIInstrumentor.instrument_app(app)
+
+    # NiceGUI registers routes via @ui.page() outside FastAPI's route registry, so
+    # FastAPIInstrumentor cannot populate http.route. This middleware recovers it by
+    # reading the matched route from Starlette's request scope after routing completes.
+    # The try/except makes this a no-op for apps that don't use NiceGUI.
+    try:
+        import nicegui  # noqa: F401
+        from starlette.middleware.base import BaseHTTPMiddleware
+
+        class _RouteAttributeMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                response = await call_next(request)
+                span = trace.get_current_span()
+                if route := request.scope.get("route"):
+                    span.set_attribute("http.route", route.path)
+                else:
+                    span.set_attribute("http.route", request.url.path)
+                return response
+
+        app.add_middleware(_RouteAttributeMiddleware)
+    except ImportError:
+        pass
 ```
 
 Call order in `main.py`:
@@ -186,36 +208,15 @@ app.add_middleware(OtelAttributeMiddleware)
 
 ### NiceGUI / custom router: recovering `http.route`
 
-**If the app uses NiceGUI (`from nicegui import ui` / `@ui.page()` decorators), you
-must add this middleware.** NiceGUI registers routes outside FastAPI's route registry,
-so `FastAPIInstrumentor` never sees the template and produces spans with no `http.route`.
-Without this fix, every span breakdown by `http.route` in Honeycomb will be empty.
+NiceGUI registers routes via `@ui.page()` outside FastAPI's route registry, so
+`FastAPIInstrumentor` never sees the template and spans arrive with no `http.route`.
+The `instrument_app` template above handles this automatically via a
+`try: import nicegui` guard — the middleware only registers when NiceGUI is installed,
+so it is safe to include in all apps.
 
-Fix: read the matched route template from Starlette's request scope *after* routing:
-
-```python
-class OtelAttributeMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)          # routing happens inside here
-        span = trace.get_current_span()
-        # Starlette populates request.scope["route"] after the router matches
-        if route := request.scope.get("route"):
-            span.set_attribute("http.route", route.path)
-        else:
-            span.set_attribute("http.route", request.url.path)
-        return response
-```
-
-Register it after `instrument_app()`:
-```python
-instrument_app(app)
-app.add_middleware(OtelAttributeMiddleware)
-```
-
-**After implementing, verify:** (1) `call_next` is called *before* reading
-`request.scope["route"]` — the route is only populated after routing completes;
-(2) `app.add_middleware(OtelAttributeMiddleware)` appears in the code. If either
-is missing, spans will arrive in Honeycomb with no `http.route`.
+If you are writing `instrument_app` by hand rather than using the template, apply the
+same pattern: check for NiceGUI with `try: import nicegui`, then add the middleware
+inside the `try` block so it is a no-op on non-NiceGUI apps.
 
 ---
 

@@ -179,6 +179,31 @@ Add it **after** `FastAPIInstrumentor.instrument_app()` and **after** auth middl
 app.add_middleware(OtelAttributeMiddleware)
 ```
 
+### NiceGUI / custom router: recovering `http.route`
+
+`FastAPIInstrumentor` populates `http.route` from FastAPI's route registry. Frameworks
+that register routes outside that registry (NiceGUI uses `@ui.page()` decorators,
+which bypass it) produce spans with no `http.route`.
+
+Fix: read the matched route template from Starlette's request scope *after* routing:
+
+```python
+class OtelAttributeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        span = trace.get_current_span()
+        # Starlette populates request.scope["route"] after the router matches
+        if route := request.scope.get("route"):
+            span.set_attribute("http.route", route.path)
+        else:
+            span.set_attribute("http.route", request.url.path)
+        # ... other attribute enrichment ...
+        return response
+```
+
+This must run **after** `call_next` so that routing has already completed and
+`request.scope["route"]` is populated.
+
 ---
 
 ## Creating Custom Spans

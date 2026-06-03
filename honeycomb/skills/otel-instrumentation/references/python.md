@@ -189,9 +189,14 @@ app.add_middleware(OtelAttributeMiddleware)
 ### NiceGUI / custom router: recovering `http.route`
 
 **If the app uses NiceGUI (`from nicegui import ui` / `@ui.page()` decorators), you
-must add this middleware.** NiceGUI registers routes outside FastAPI's route registry,
-so `FastAPIInstrumentor` never sees the template and produces spans with no `http.route`.
-Without this, every `http.route` breakdown in Honeycomb will be empty.
+must add this middleware.**
+
+A common mistake: assuming that because `FastAPIInstrumentor` wraps the ASGI layer,
+NiceGUI requests are fully instrumented. Spans *are* created — but `http.route` is
+**not** populated. `FastAPIInstrumentor` reads `http.route` from FastAPI's route
+registry, and NiceGUI's `@ui.page()` routes are never registered there. The result is
+spans that exist but have no route, making every `http.route` breakdown in Honeycomb
+empty. The middleware below is the only way to recover it.
 
 ```python
 from starlette.middleware.base import BaseHTTPMiddleware

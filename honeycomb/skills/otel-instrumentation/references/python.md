@@ -201,6 +201,12 @@ NiceGUI requests are fully instrumented. Spans *are* created — but `http.route
 registry, and NiceGUI's `@ui.page()` routes are never registered there. The result is
 spans with no route, making every `http.route` breakdown in Honeycomb empty.
 
+**Another common mistake: using `server_request_hook` to read `scope["route"]`.**
+This looks correct but silently fails for NiceGUI — the route is not yet matched
+in the scope when the hook fires (span creation). It is only populated *after*
+routing completes. The only working fix is the middleware below, which runs after
+`call_next` when routing has already happened.
+
 If the app uses NiceGUI, add this after `instrument_app(app)` in `main.py`:
 
 ```python

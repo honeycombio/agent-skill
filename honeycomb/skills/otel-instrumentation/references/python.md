@@ -119,10 +119,25 @@ def configure_opentelemetry(sqlalchemy_engine=None):
         SQLAlchemyInstrumentor().instrument(engine=sqlalchemy_engine.sync_engine)
 
 
-def instrument_app(app):
+def instrument_app(app, *, nicegui_app=False):
     FastAPIInstrumentor.instrument_app(app)
-    # If this app uses NiceGUI (@ui.page() decorators), also add the http.route
-    # middleware — see "NiceGUI / custom router" section below.
+    if nicegui_app:
+        # NiceGUI registers routes via @ui.page() outside FastAPI's route registry,
+        # so http.route is not populated without this middleware.
+        # See "NiceGUI / custom router" section below for why this is necessary.
+        from starlette.middleware.base import BaseHTTPMiddleware
+
+        class _RouteAttributeMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                response = await call_next(request)
+                span = trace.get_current_span()
+                if route := request.scope.get("route"):
+                    span.set_attribute("http.route", route.path)
+                else:
+                    span.set_attribute("http.route", request.url.path)
+                return response
+
+        app.add_middleware(_RouteAttributeMiddleware)
 ```
 
 Call order in `main.py`:
@@ -137,7 +152,8 @@ init_api_routes(app)
 init_gui_routes(app)
 
 # 3. Instrument the fully-wired app
-instrument_app(app)
+# Set nicegui_app=True if the codebase uses @ui.page() decorators (NiceGUI)
+instrument_app(app, nicegui_app=False)
 ```
 
 **Why order matters:** `FastAPIInstrumentor.instrument_app()` wraps the router list
@@ -188,37 +204,16 @@ app.add_middleware(OtelAttributeMiddleware)
 
 ### NiceGUI / custom router: recovering `http.route`
 
-**If the app uses NiceGUI (`from nicegui import ui` / `@ui.page()` decorators), you
-must add this middleware.**
+Pass `nicegui_app=True` to `instrument_app()` when the codebase uses NiceGUI
+(`@ui.page()` decorators). This activates the route recovery middleware built into
+the template above.
 
 A common mistake: assuming that because `FastAPIInstrumentor` wraps the ASGI layer,
 NiceGUI requests are fully instrumented. Spans *are* created — but `http.route` is
 **not** populated. `FastAPIInstrumentor` reads `http.route` from FastAPI's route
 registry, and NiceGUI's `@ui.page()` routes are never registered there. The result is
-spans that exist but have no route, making every `http.route` breakdown in Honeycomb
-empty. The middleware below is the only way to recover it.
-
-```python
-from starlette.middleware.base import BaseHTTPMiddleware
-
-class _RouteAttributeMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        response = await call_next(request)  # routing happens inside here
-        span = trace.get_current_span()
-        if route := request.scope.get("route"):
-            span.set_attribute("http.route", route.path)
-        else:
-            span.set_attribute("http.route", request.url.path)
-        return response
-
-def instrument_app(app):
-    FastAPIInstrumentor.instrument_app(app)
-    app.add_middleware(_RouteAttributeMiddleware)  # NiceGUI route recovery
-```
-
-**After implementing, verify:** (1) `call_next` is called *before* reading
-`request.scope["route"]`; (2) `app.add_middleware(_RouteAttributeMiddleware)` is
-present. If either is missing, spans will have no `http.route`.
+spans with no route, making every `http.route` breakdown in Honeycomb empty.
+`nicegui_app=True` is the only way to recover it.
 
 ---
 

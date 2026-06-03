@@ -6,6 +6,26 @@ programmatic SDK setup for ASGI apps, and attribute enrichment.
 
 ---
 
+## Critical: async SQLAlchemy requires `.sync_engine`
+
+**Read this before writing any SQLAlchemy instrumentation.** `SQLAlchemyInstrumentor`
+does not support async engines directly. Passing the async engine raises
+`NotImplementedError: asynchronous events are not implemented at this time`.
+
+Always pass the underlying sync engine:
+
+```python
+# WRONG — raises NotImplementedError at startup
+SQLAlchemyInstrumentor().instrument(engine=async_engine)
+
+# CORRECT
+SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
+```
+
+This applies to `create_async_engine(...)` from `sqlalchemy.ext.asyncio`.
+
+---
+
 ## Choosing Your Setup Approach
 
 | Approach | When to use |
@@ -180,6 +200,10 @@ async def process_habit_completion(habit_id: str, done: bool):
 For async code, context propagates automatically through `async with` and
 `start_as_current_span` — no manual context passing needed within a single
 async task.
+
+**Do not leave test spans in production code.** Spans named `test-span`, `debug-span`,
+or similar are instrumentation artefacts that pollute the dataset. Remove any span
+created solely to verify that tracing is working before finishing.
 
 ---
 

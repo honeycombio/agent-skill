@@ -200,11 +200,6 @@ async def process_habit_completion(habit_id: str, done: bool):
 For async code, context propagates automatically through `async with` and
 `start_as_current_span` — no manual context passing needed within a single
 async task.
-
-**Do not leave test spans in production code.** Spans named `test-span`, `debug-span`,
-or similar are instrumentation artefacts that pollute the dataset. Remove any span
-created solely to verify that tracing is working before finishing.
-
 ---
 
 ## Async Caveats

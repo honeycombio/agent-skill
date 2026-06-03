@@ -204,18 +204,6 @@ async task.
 
 ## Async Caveats
 
-### SQLAlchemy async engine
-`SQLAlchemyInstrumentor` requires the **sync** engine handle, even when using
-async SQLAlchemy:
-
-```python
-# async engine
-async_engine = create_async_engine("sqlite+aiosqlite:///habits.db")
-
-# pass the sync engine to the instrumentor
-SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
-```
-
 ### asyncpg raw driver
 If using `asyncpg` directly (no SQLAlchemy), use
 `opentelemetry-instrumentation-asyncpg` and call

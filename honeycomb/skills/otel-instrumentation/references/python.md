@@ -24,6 +24,11 @@ SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
 
 This applies to `create_async_engine(...)` from `sqlalchemy.ext.asyncio`.
 
+**After writing the call, verify the argument ends in `.sync_engine`.** If it reads
+`engine=some_engine` without `.sync_engine`, the app will crash at startup with
+`NotImplementedError: asynchronous events are not implemented at this time` — the
+fix is always to append `.sync_engine` to the engine argument.
+
 ---
 
 ## Choosing Your Setup Approach

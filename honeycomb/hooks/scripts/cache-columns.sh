@@ -53,11 +53,34 @@ if [[ -f "$cache_file" ]]; then
   sort -u "$cache_file" -o "$cache_file"
 fi
 
-# Mark cache as complete when built from get_dataset_columns (returns ALL columns).
-# find_columns only returns top-50 results, so its cache is inherently partial.
-# validate-query.sh uses this marker to decide hard-deny vs soft-nudge.
+# Mark the cache "complete" only when we actually hold the FULL schema.
+# find_columns returns only its top-N matches, so its cache is always partial
+# (no marker). get_dataset_columns paginates: one response is the whole schema
+# only when total_pages <= 1; for multi-page schemas we record which pages we've
+# cached and mark complete once every page has been seen. validate-query.sh keys
+# its nudge firmness off this marker, so marking complete while pages are still
+# un-fetched would nudge against columns that genuinely exist on later pages.
 if [[ "$tool_name" == *get_dataset_columns* ]]; then
-  touch "${cache_file%.txt}.complete"
+  # `page:` is anchored to line-start so it doesn't also match `items_per_page:`.
+  total_pages=$(printf '%s\n' "$tool_result" | grep -E '^[[:space:]]*total_pages:[[:space:]]*[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+  page=$(printf '%s\n' "$tool_result" | grep -E '^[[:space:]]*page:[[:space:]]*[0-9]+' | grep -oE '[0-9]+' | head -1 || true)
+  : "${total_pages:=1}"
+  : "${page:=1}"
+
+  complete_marker="${cache_file%.txt}.complete"
+  if [[ "$total_pages" -le 1 ]]; then
+    # Single page is the entire schema.
+    touch "$complete_marker"
+  else
+    # Multi-page: track distinct pages seen; complete once all are cached.
+    pages_file="${cache_file%.txt}.pages"
+    echo "$page" >> "$pages_file"
+    sort -un "$pages_file" -o "$pages_file"
+    seen=$(wc -l < "$pages_file" | tr -d '[:space:]')
+    if [[ "$seen" -ge "$total_pages" ]]; then
+      touch "$complete_marker"
+    fi
+  fi
 fi
 
 exit 0

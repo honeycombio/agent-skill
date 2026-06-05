@@ -141,13 +141,15 @@ class TestNoCacheNudge:
             assert "systemMessage" in result
 
 
-# ── Hard deny: column not in cache ──────────────────────────────────────
+# ── Complete-cache nudge: column not in cache ───────────────────────────
 
 
-class TestDenyUnknownColumns:
-    """When a cache exists and a column is missing, the hook should deny."""
+class TestCompleteCacheNudge:
+    """When a complete cache exists and a column is missing, the hook firmly
+    nudges via systemMessage — but never blocks (no permissionDecision deny).
+    The Honeycomb API stays the source of truth for column validity."""
 
-    def test_deny_unknown_column(self):
+    def test_unknown_column_nudges_not_denies(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -157,11 +159,10 @@ class TestDenyUnknownColumns:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            deny = result["hookSpecificOutput"]
-            assert deny["permissionDecision"] == "deny"
-            assert "htttp.status_code" in deny["permissionDecisionReason"]
+            assert "hookSpecificOutput" not in result, "Hook must never hard-deny"
+            assert "htttp.status_code" in result["systemMessage"]
 
-    def test_deny_includes_fuzzy_suggestions(self):
+    def test_nudge_includes_fuzzy_suggestions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route", "http.method"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -170,10 +171,9 @@ class TestDenyUnknownColumns:
                 "breakdowns": ["http.staus_code"],
             })
             result = _run_hook(data, cache_dir=tmpdir)
-            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
-            assert "http.status_code" in reason, "Expected fuzzy suggestion for typo"
+            assert "http.status_code" in result["systemMessage"], "Expected fuzzy suggestion for typo"
 
-    def test_deny_multiple_unknown_columns(self):
+    def test_multiple_unknown_columns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -182,9 +182,23 @@ class TestDenyUnknownColumns:
                 "breakdowns": ["userr.id"],
             })
             result = _run_hook(data, cache_dir=tmpdir)
-            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
-            assert "latencyy" in reason
-            assert "userr.id" in reason
+            msg = result["systemMessage"]
+            assert "latencyy" in msg
+            assert "userr.id" in msg
+
+    def test_never_emits_deny_decision(self):
+        """Invariant: the hook never returns a permissionDecision deny,
+        regardless of cache state — the API is the authoritative validator."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
+            _write_complete_marker(tmpdir, "prod", "api-requests")
+            data = _make_input(query_spec={
+                "calculations": [{"op": "AVG", "column": "definitely.not.a.column"}],
+            })
+            result = _run_hook(data, cache_dir=tmpdir)
+            assert result is not None
+            assert "hookSpecificOutput" not in result
+            assert "permissionDecision" not in json.dumps(result)
 
 
 # ── Valid columns pass ──────────────────────────────────────────────────
@@ -250,7 +264,7 @@ class TestRelationalPrefixes:
             })
             assert _run_hook(data, cache_dir=tmpdir) is None
 
-    def test_prefixed_unknown_column_denied(self):
+    def test_prefixed_unknown_column_nudges(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.route"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -260,7 +274,8 @@ class TestRelationalPrefixes:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+            assert "hookSpecificOutput" not in result
+            assert "systemMessage" in result
 
 
 # ── Cross-dataset (_all) cache fallback ─────────────────────────────────
@@ -291,7 +306,8 @@ class TestAllDatasetFallback:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+            assert "hookSpecificOutput" not in result
+            assert "only.in.all" in result["systemMessage"]
 
 
 # ── Column extraction from all query_spec fields ────────────────────────
@@ -309,7 +325,7 @@ class TestColumnExtraction:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert "unknown.calc.col" in result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "unknown.calc.col" in result["systemMessage"]
 
     def test_column_from_filters(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -321,7 +337,7 @@ class TestColumnExtraction:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert "unknown.filter.col" in result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "unknown.filter.col" in result["systemMessage"]
 
     def test_column_from_breakdowns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -333,7 +349,7 @@ class TestColumnExtraction:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert "unknown.breakdown.col" in result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "unknown.breakdown.col" in result["systemMessage"]
 
     def test_column_from_orders(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -345,7 +361,7 @@ class TestColumnExtraction:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert "unknown.order.col" in result["hookSpecificOutput"]["permissionDecisionReason"]
+            assert "unknown.order.col" in result["systemMessage"]
 
 
 # ── Bug 2: Named calculations and formulas in orders ────────────────────
@@ -410,9 +426,9 @@ class TestNamedCalculationsInOrders:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+            reason = result["systemMessage"]
             assert "nonexistent.col" in reason
-            assert "total" not in reason, "Named calculation 'total' should not appear in deny reason"
+            assert "total" not in reason, "Named calculation 'total' should not appear in the nudge"
 
 
 # ── Bug 3: Calculated fields output names ────────────────────────────────
@@ -474,8 +490,8 @@ class TestCalculatedFields:
                 f"Got: {result}"
             )
 
-    def test_real_unknown_column_still_denied_with_calculated_fields(self):
-        """Real unknown columns should still be denied alongside calculated fields."""
+    def test_real_unknown_column_still_flagged_with_calculated_fields(self):
+        """Real unknown columns should still be flagged (via nudge) alongside calculated fields."""
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["error"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -488,9 +504,9 @@ class TestCalculatedFields:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+            reason = result["systemMessage"]
             assert "bogus.column" in reason
-            assert "error_pct" not in reason, "Calculated field 'error_pct' should not appear in deny reason"
+            assert "error_pct" not in reason, "Calculated field 'error_pct' should not appear in the nudge"
 
 
 # ── Bug 1: Partial cache should soft-nudge, not hard-deny ────────────
@@ -558,8 +574,9 @@ class TestPartialCacheNudge:
             msg = result["systemMessage"]
             assert "http.status_code" in msg, "Nudge should include fuzzy suggestion for typo"
 
-    def test_complete_cache_still_denies(self):
-        """With .complete marker, unknown columns are still hard-denied."""
+    def test_complete_cache_nudges_firmly_never_denies(self):
+        """With .complete marker, unknown columns get a firm systemMessage
+        nudge — but are never hard-denied."""
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code", "http.route"])
             _write_complete_marker(tmpdir, "prod", "api-requests")
@@ -569,12 +586,12 @@ class TestPartialCacheNudge:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert "hookSpecificOutput" in result
-            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+            assert "hookSpecificOutput" not in result
+            assert "app.user_id" in result["systemMessage"]
 
-    def test_upgraded_cache_denies_after_get_dataset_columns(self):
+    def test_upgraded_cache_nudges_firmly_after_get_dataset_columns(self):
         """If find_columns ran first, then get_dataset_columns added the marker,
-        the cache should be treated as complete → hard deny."""
+        the cache is treated as complete → firm nudge (still never a deny)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Simulate: find_columns built partial cache
             _write_cache(tmpdir, "prod", "api-requests", ["http.status_code"])
@@ -587,7 +604,8 @@ class TestPartialCacheNudge:
             })
             result = _run_hook(data, cache_dir=tmpdir)
             assert result is not None
-            assert result["hookSpecificOutput"]["permissionDecision"] == "deny"
+            assert "hookSpecificOutput" not in result
+            assert "nonexistent.column" in result["systemMessage"]
 
     def test_partial_all_cache_nudges(self):
         """Partial _all cache should also soft-nudge, not hard-deny."""

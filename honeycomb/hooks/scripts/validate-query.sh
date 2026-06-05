@@ -4,12 +4,19 @@ set -euo pipefail
 # PreToolUse hook for run_query.
 #
 # Validates column names in the query_spec against the schema cache built
-# by cache-columns.sh. Two modes:
+# by cache-columns.sh and emits an advisory systemMessage for any column not
+# present. It never blocks the query (never returns permissionDecision: deny):
+# the Honeycomb API is the authoritative validator, and this client-side cache
+# can be stale (columns arriving mid-session), incomplete (get_dataset_columns
+# pagination), or blind to query-only identifiers we don't model — so a hard
+# deny would risk blocking a valid query the API would accept. Cache
+# completeness only tunes how firm the nudge is:
 #
-#   No cache for this dataset → systemMessage nudge (soft)
-#   Cache exists, column missing → permissionDecision: deny (hard)
+#   No cache for this dataset      → systemMessage nudge (soft)
+#   Partial cache, column missing  → systemMessage nudge (soft)
+#   Complete cache, column missing → systemMessage nudge (firm)
 #
-# Denials include fuzzy-match suggestions via Python's difflib so the model
+# Nudges include fuzzy-match suggestions via Python's difflib so the model
 # can self-correct without a round-trip to the API.
 
 input=$(cat)
@@ -151,21 +158,23 @@ if [[ ${#unknown[@]} -eq 0 ]]; then
 fi
 
 # ── Build response ───────────────────────────────────────────────────
+# Always advisory: emit a systemMessage, never a permissionDecision deny.
+# The API is the source of truth for column validity; this cache can be
+# stale, incomplete (pagination), or blind to query-only identifiers, so a
+# hard deny would block valid queries the API would accept — worse than the
+# cheap, self-correcting API error it tries to save. Cache completeness only
+# tunes how firmly we phrase the nudge.
 unknown_str=$(printf '%s, ' "${unknown[@]}" | sed 's/, $//')
 suggestion_str=$(printf '%s\n' "${suggestions[@]}")
 
 if [[ "$cache_is_complete" == "true" ]]; then
-  # Complete cache (from get_dataset_columns) — hard deny
+  # Complete cache (from get_dataset_columns) — firm nudge
   jq -n \
     --arg cols "$unknown_str" \
     --arg hints "$suggestion_str" \
     --arg dataset "$dataset_slug" \
     '{
-      hookSpecificOutput: {
-        hookEventName: "PreToolUse",
-        permissionDecision: "deny",
-        permissionDecisionReason: "Query references columns not found in cached schema for \"\($dataset)\": [\($cols)].\nSuggestions:\n\($hints)\nCall get_dataset_columns to refresh the schema cache, or find_columns to search for correct column names."
-      }
+      systemMessage: "Column names not found in the cached schema for dataset \"\($dataset)\" (cache built from get_dataset_columns): [\($cols)]. These are likely typos or wrong names — verify or fix them before relying on the results.\nSuggestions:\n\($hints)\nCall get_dataset_columns to refresh the schema cache, or find_columns to search for correct column names. The query is not blocked; the Honeycomb API is the source of truth."
     }'
 else
   # Partial cache (from find_columns) — soft nudge

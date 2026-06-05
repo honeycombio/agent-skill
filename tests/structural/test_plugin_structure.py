@@ -50,6 +50,7 @@ def test_no_unexpected_top_level_dirs(plugin_root):
         "commands",
         "hooks",
         "assets",
+        "scripts",
     }
     actual = {p.name for p in plugin_root.iterdir() if p.is_dir()}
     unexpected = actual - expected

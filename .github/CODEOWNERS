@@ -9,6 +9,7 @@ honeycomb/skills/beeline-migration/             @honeycombio/developer-relations
 honeycomb/skills/create-honeycomb-board/        @honeycombio/developer-relations
 honeycomb/skills/metrics-queries/               @honeycombio/developer-relations
 honeycomb/skills/observability-fundamentals/    @honeycombio/developer-relations
+honeycomb/skills/otel-genai-instrumentation/    @honeycombio/developer-relations
 honeycomb/skills/otel-instrumentation/          @honeycombio/developer-relations
 honeycomb/skills/otel-migration/                @honeycombio/developer-relations
 honeycomb/skills/production-investigation/      @honeycombio/developer-relations

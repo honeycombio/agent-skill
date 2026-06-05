@@ -5,13 +5,67 @@ traces to Honeycomb.
 
 ## Environment Variables (All Languages)
 
+### Required
+
 ```bash
+export OTEL_SERVICE_NAME="your-service-name"
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io"
 export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
-export OTEL_SERVICE_NAME="your-service-name"
 ```
 
 EU endpoint: `https://api.eu1.honeycomb.io`
+
+### Optional (Recommended)
+
+```bash
+# Protocol selection (default: http/protobuf)
+export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"  # or "grpc"
+
+# Signal-specific endpoints (override base endpoint)
+export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="https://api.honeycomb.io/v1/traces"
+export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="https://api.honeycomb.io/v1/metrics"
+```
+
+### For Metrics (Required if sending metrics)
+
+```bash
+export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_METRICS_DATASET"
+```
+
+### Honeycomb Authentication Pitfall
+
+The `x-honeycomb-team` header in `OTEL_EXPORTER_OTLP_HEADERS` is **required** for
+Honeycomb to accept OTLP data. Without it, Honeycomb **silently rejects** requests — no
+error is returned, data simply never appears.
+
+A common mistake: the app has `HONEYCOMB_API_KEY` in `.env` but never sets
+`OTEL_EXPORTER_OTLP_HEADERS`. The OTel SDK does NOT automatically read
+`HONEYCOMB_API_KEY` — you must either:
+
+1. Set `OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_KEY"` explicitly, **or**
+2. Pass headers programmatically when constructing exporters:
+   ```typescript
+   const headers = { "x-honeycomb-team": process.env.HONEYCOMB_API_KEY };
+   new OTLPTraceExporter({ headers });
+   new OTLPMetricExporter({ headers });
+   ```
+
+Also ensure `.env` is loaded (e.g., `import "dotenv/config"`) **before** the OTel SDK
+initializes. In ESM/TypeScript, all imports resolve before module body code runs, so
+`dotenv.config()` in the main file may execute too late.
+
+### Honeycomb Metrics Dataset Header
+
+Honeycomb requires the `x-honeycomb-dataset` header on the OTLP **metrics** endpoint to
+route metrics to the correct dataset. Without it, metrics are silently dropped. Traces do
+not require this header (they use `service.name` for routing).
+
+```bash
+export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_METRICS_DATASET"
+```
+
+Or pass `headers` with `x-honeycomb-dataset` programmatically when constructing the
+metrics exporter.
 
 ## Go
 

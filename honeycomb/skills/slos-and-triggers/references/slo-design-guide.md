@@ -35,10 +35,10 @@ For a 99.9% SLO over a 30-day rolling window:
 
 ### Good SLIs
 
-- **Specific**: `IF(EQUALS($name), "POST /endpoint/of/interest", <success-condition>)) - Choose precisely the events that qualify
+- **Specific**: `IF(EQUALS($name, "POST /endpoint/of/interest"), <success-condition>)` — Choose precisely the events that qualify
 - **Latency**: `LTE(duration_ms, <threshold>)` — Events faster than threshold
 - **Availability**: `LTE(http.status_code, 499)` — Non-server-error responses
-- **Customer Experience**: `AND(LTE(duration_ms, <threshold>), EQ(rpc.status_code, 0))` - not slow and successful
+- **Customer Experience**: `AND(LTE(duration_ms, <threshold>), EQUALS(rpc.status_code, 0))` - not slow and successful
 
 ### SLI Design Rules
 

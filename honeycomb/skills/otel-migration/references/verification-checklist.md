@@ -3,7 +3,9 @@
 After completing each migration phase, verify that instrumentation is correct and complete.
 Silent failures are the norm in OTel migration — code compiles and runs correctly, but traces
 are disconnected, attributes are missing, or telemetry is dropped. Always verify with your
-tracing backend.
+tracing backend. If you do not have a Honeycomb account yet or want to verify locally before
+sending data upstream, run a local OTel Collector and inspect its debug output and NDJSON log
+file — see `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/local-collector-debug-test.md` for setup and `jq` inspection commands.
 
 ## 1. Traces Exist and Are Connected
 

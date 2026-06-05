@@ -149,6 +149,11 @@ After each phase, verify that instrumentation is correct and complete. Consult
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-migration/references/verification-checklist.md` for the
 full checklist and query patterns.
 
+To verify locally without a Honeycomb account, use the bundled collector script to capture
+spans as debug output and NDJSON. Consult
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/local-collector-debug-test.md` for usage, and
+`${CLAUDE_PLUGIN_ROOT}/scripts/start-collector.sh` for the full script.
+
 For Honeycomb-specific verification queries, also consult the `query-patterns` skill.
 
 ## Common Pitfalls

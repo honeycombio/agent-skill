@@ -277,6 +277,11 @@ view at a different level of detail.
 For architectural patterns where layering is essential (streaming, async jobs, ETL), see
 `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/architectural-patterns.md`.
 
+For AWS Lambda-specific patterns — choosing between the AWS Managed OTel Layer
+and manual SDK setup, forceFlush, SDK 2.x setup, cross-Lambda trace propagation,
+header normalisation, TOKEN vs REQUEST authorizers — see
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/lambda.md`.
+
 ## Logs in Honeycomb
 
 OTel can send logs too. If you have existing log infrastructure, the OTel Collector can
@@ -304,6 +309,7 @@ capabilities as spans.
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/collector-config.md`** — OTel Collector configuration for format conversion, processing, and sampling
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/wide-event-attributes.md`** — Canonical attribute catalog organized by category with example queries
 - **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/architectural-patterns.md`** — Trace design patterns for streaming, async, ETL, and serverless architectures
+- **`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/lambda.md`** — AWS Lambda: OTel Layer vs manual SDK setup trade-offs, forceFlush and per-request latency, SDK 2.x setup, cross-Lambda trace propagation, header normalisation, TOKEN vs REQUEST authorizer migration
 
 ### Cross-References
 - For conceptual foundations of why wide events and attributes matter: **observability-fundamentals** skill

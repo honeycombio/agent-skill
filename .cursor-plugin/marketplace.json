@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "honeycomb",
-      "source": "./honeycomb",
+      "source": "honeycomb",
       "description": "Skills, agents, and workflows for Honeycomb observability"
     }
   ]

@@ -1,0 +1,42 @@
+{
+  "name": "honeycomb",
+  "version": "1.0.0",
+  "description": "Skills, agents, and workflows for Honeycomb observability — query patterns, production investigations, SLOs, OpenTelemetry instrumentation, and Beeline migration. Designed to complement the Honeycomb MCP server.",
+  "author": {
+    "name": "Honeycomb",
+    "url": "https://honeycomb.io"
+  },
+  "homepage": "https://docs.honeycomb.io/integrations/mcp/",
+  "repository": "https://github.com/honeycombio/agent-skill",
+  "license": "MIT",
+  "keywords": [
+    "honeycomb",
+    "observability",
+    "opentelemetry",
+    "tracing",
+    "slo",
+    "mcp",
+    "debugging",
+    "instrumentation"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Honeycomb",
+    "shortDescription": "Honeycomb observability workflows",
+    "longDescription": "Use Honeycomb skills and workflows for production investigations, query construction, SLO analysis, OpenTelemetry instrumentation, and Beeline migration.",
+    "developerName": "Honeycomb",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://honeycomb.io",
+    "brandColor": "#FEC514",
+    "composerIcon": "./assets/logo-square.png",
+    "logo": "./assets/logo-square.png",
+    "defaultPrompt": [
+      "Use Honeycomb to investigate a production latency spike.",
+      "Use Honeycomb to plan OpenTelemetry instrumentation for this service.",
+      "Use Honeycomb to check SLO burn and explain what changed."
+    ]
+  }
+}

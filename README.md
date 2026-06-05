@@ -4,7 +4,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 
 ## What's included
 
-- **8 skills** — observability fundamentals, query patterns, production investigation, SLOs & triggers, OpenTelemetry instrumentation, OpenTelemetry migration, Beeline migration, board creation
+- **9 skills** — observability fundamentals, query patterns, metrics queries, production investigation, SLOs & triggers, OpenTelemetry instrumentation, OpenTelemetry migration, Beeline migration, board creation
 - **2 agents** — `honeycomb-investigator` for autonomous multi-step production debugging, `instrumentation-advisor` for codebase-to-Honeycomb gap analysis (Claude Code and Cursor)
 - **1 command** — `/honeycomb-setup` for interactive MCP server configuration (Claude Code and Cursor)
 
@@ -15,7 +15,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 |------|---------|
 | Claude Code | `claude plugin marketplace add honeycombio/agent-skill` then `claude plugin install honeycomb` |
 | OpenAI Codex | `codex plugin marketplace add honeycombio/agent-skill` then install Honeycomb from the plugin directory |
-| Cursor | Team Marketplace import, or local plugin install — [see Cursor setup](#cursor) |
+| Cursor | [Install from cursor.directory](https://cursor.directory/plugins/honeycomb) — or Team Marketplace import ([setup](#cursor)) |
 | Augment (Auggie CLI) | `auggie plugin marketplace add honeycombio/agent-skill` then `auggie plugin install honeycomb` |
 | GitHub Copilot CLI | `copilot plugin install honeycombio/agent-skill:honeycomb` |
 
@@ -52,39 +52,29 @@ Requires the Honeycomb MCP server to be configured (the `/honeycomb-setup` comma
 
 ### Cursor
 
-Honeycomb ships as a Cursor **plugin** (skills, agents, the `/honeycomb-setup`
-command, hooks, and the MCP server). It is **not** a project rule, so the
-**Rules > Add Remote Rule** flow does not work — that importer only accepts
-`.mdc` rule files, and this repo intentionally ships none. Use a plugin install
-path instead.
+Honeycomb is a Cursor **plugin** (skills, agents, the `/honeycomb-setup`
+command, hooks, and the MCP server). Install it from the Cursor plugin
+directory:
 
-#### Teams / Enterprise — Marketplace import
+**→ [cursor.directory/plugins/honeycomb](https://cursor.directory/plugins/honeycomb)**
 
-1. Open the Cursor dashboard → **Settings > Plugins**.
-2. Under **Team Marketplaces**, import from the repository URL:
-   `https://github.com/honeycombio/agent-skill`
-3. Add the `honeycomb` plugin to your marketplace and grant team access.
+Open the listing and use its **Install** action. The plugin's MCP server config
+is shown for review before it's passed to Cursor — confirm it, then reload.
 
-#### Individual users — local install
+> It is **not** a project rule. The **Rules > Add Remote Rule** flow does not
+> work — that importer only accepts `.mdc` rule files, which this plugin
+> intentionally doesn't ship.
 
-Cursor has no one-click GitHub import for individual plugins, so install the
-plugin into Cursor's local plugins folder:
+#### Distributing to a team
 
-```bash
-git clone https://github.com/honeycombio/agent-skill.git
-mkdir -p ~/.cursor/plugins/local
-ln -s "$(pwd)/agent-skill/honeycomb" ~/.cursor/plugins/local/honeycomb
-```
+On Teams/Enterprise plans you can import this repo as a private **Team
+Marketplace**: Cursor dashboard → **Settings > Plugins > Team Marketplaces >
+Import**, then paste `https://github.com/honeycombio/agent-skill` and grant team
+access. See [Cursor: Plugins](https://cursor.com/docs/plugins) for team
+marketplace setup.
 
-Then restart Cursor, or run **Developer: Reload Window** from the command
-palette. The `honeycomb/` directory is a self-contained plugin (its
-`.cursor-plugin/plugin.json` declares the skills, agents, command, hooks, and
-MCP server). To update later: `cd agent-skill && git pull`.
-
-Once loaded, type `/` in Agent chat and search for a skill name to invoke it
-manually. See [Cursor: Plugins](https://cursor.com/docs/plugins) and
-[`honeycomb/.cursor-plugin/INSTALL.md`](honeycomb/.cursor-plugin/INSTALL.md) for
-more detail.
+For a manual / local install (e.g. plugin development), see
+[`honeycomb/.cursor-plugin/INSTALL.md`](honeycomb/.cursor-plugin/INSTALL.md).
 
 ### OpenAI Codex
 

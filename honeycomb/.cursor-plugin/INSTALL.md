@@ -4,6 +4,15 @@ Honeycomb ships as a Cursor **plugin** — skills, agents, the `/honeycomb-setup
 command, hooks, and the Honeycomb MCP server, all declared in
 [`plugin.json`](./plugin.json).
 
+## Recommended — Cursor plugin directory
+
+Install from the public listing:
+**[cursor.directory/plugins/honeycomb](https://cursor.directory/plugins/honeycomb)**
+
+Open the listing and use its **Install** action. Cursor shows the plugin's MCP
+server config for review before passing it to Cursor — confirm it, then restart
+Cursor or run **Developer: Reload Window** from the command palette.
+
 > **Not a project rule.** Cursor's **Settings > Rules > Add Remote Rule** flow
 > only imports `.mdc` rule files. This repo ships none, so that flow fails with
 > _"No importable `.mdc` project rule files were found in the repository."_ Use
@@ -18,11 +27,10 @@ GitHub import is available on Teams and Enterprise plans via Team Marketplaces:
    `https://github.com/honeycombio/agent-skill`
 3. Add the `honeycomb` plugin to your marketplace and grant team access.
 
-## Individual users — local install
+## Manual / local install (development)
 
-Cursor does not offer a one-click GitHub import for individual plugins. Install
-the plugin into Cursor's local plugins folder by symlinking (recommended, so
-`git pull` keeps it current) or copying.
+For plugin development or offline use, load it from Cursor's local plugins
+folder by symlinking (recommended, so `git pull` keeps it current) or copying.
 
 ### macOS / Linux
 

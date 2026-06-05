@@ -4,7 +4,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 
 ## What's included
 
-- **8 skills** — observability fundamentals, query patterns, production investigation, SLOs & triggers, OpenTelemetry instrumentation, OpenTelemetry migration, Beeline migration, board creation
+- **9 skills** — observability fundamentals, query patterns, metrics queries, production investigation, SLOs & triggers, OpenTelemetry instrumentation, OpenTelemetry migration, Beeline migration, board creation
 - **2 agents** — `honeycomb-investigator` for autonomous multi-step production debugging, `instrumentation-advisor` for codebase-to-Honeycomb gap analysis (Claude Code and Cursor)
 - **1 command** — `/honeycomb-setup` for interactive MCP server configuration (Claude Code and Cursor)
 
@@ -15,7 +15,7 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 |------|---------|
 | Claude Code | `claude plugin marketplace add honeycombio/agent-skill` then `claude plugin install honeycomb` |
 | OpenAI Codex | `codex plugin marketplace add honeycombio/agent-skill` then install Honeycomb from the plugin directory |
-| Cursor | Settings > Rules > Add Remote Rule > `https://github.com/honeycombio/agent-skill` |
+| Cursor | [Install from cursor.directory](https://cursor.directory/plugins/honeycomb) — or Team Marketplace import ([setup](#cursor)) |
 | Augment (Auggie CLI) | `auggie plugin marketplace add honeycombio/agent-skill` then `auggie plugin install honeycomb` |
 | GitHub Copilot CLI | `copilot plugin install honeycombio/agent-skill:honeycomb` |
 
@@ -52,14 +52,25 @@ Requires the Honeycomb MCP server to be configured (the `/honeycomb-setup` comma
 
 ### Cursor
 
-1. Open Cursor Settings (`Cmd+Shift+J` on Mac, `Ctrl+Shift+J` on Windows/Linux)
-2. Navigate to **Rules > Project Rules**
-3. Click **Add Rule** and select **Remote Rule (Github)**
-4. Enter: `https://github.com/honeycombio/agent-skill`
+Honeycomb is a Cursor **plugin** (skills, agents, the `/honeycomb-setup`
+command, hooks, and the MCP server). Install it from the Cursor plugin
+directory:
 
-Skills will be imported into your project and available in Agent chat. Type `/` and search for a skill name to invoke it manually.
+**→ [cursor.directory/plugins/honeycomb](https://cursor.directory/plugins/honeycomb)**
 
-See the [Cursor skills documentation](https://cursor.com/docs/context/skills) for more details.
+Open the listing and use its **Install** action. The plugin's MCP server config
+is shown for review before it's passed to Cursor — confirm it, then reload.
+
+#### Distributing to a team
+
+On Teams/Enterprise plans you can import this repo as a private **Team
+Marketplace**: Cursor dashboard → **Settings > Plugins > Team Marketplaces >
+Import**, then paste `https://github.com/honeycombio/agent-skill` and grant team
+access. See [Cursor: Plugins](https://cursor.com/docs/plugins) for team
+marketplace setup.
+
+For a manual / local install (e.g. plugin development), see
+[`honeycomb/.cursor-plugin/INSTALL.md`](honeycomb/.cursor-plugin/INSTALL.md).
 
 ### OpenAI Codex
 

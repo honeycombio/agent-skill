@@ -61,10 +61,6 @@ directory:
 Open the listing and use its **Install** action. The plugin's MCP server config
 is shown for review before it's passed to Cursor — confirm it, then reload.
 
-> It is **not** a project rule. The **Rules > Add Remote Rule** flow does not
-> work — that importer only accepts `.mdc` rule files, which this plugin
-> intentionally doesn't ship.
-
 #### Distributing to a team
 
 On Teams/Enterprise plans you can import this repo as a private **Team

@@ -41,3 +41,6 @@ tests/scenarios/output/
 
 # Skill eval/iteration workspace
 honeycomb/skills-workspace/
+
+# Skill "in use" runtime lock marker
+.in_use/

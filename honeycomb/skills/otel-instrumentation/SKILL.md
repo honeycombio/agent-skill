@@ -35,8 +35,8 @@ systemd unit, Procfile, or your platform's env/secrets config.
 
 | Variable | Purpose | Where to set | Commit to source? |
 |---|---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb) | launch env / container env | yes |
-| `OTEL_EXPORTER_OTLP_HEADERS` | ingest key (`x-honeycomb-team=…`) | **secrets store / CI env** | **no — it's a secret** |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb, or a local/internal collector) | launch env / container env | yes |
+| `OTEL_EXPORTER_OTLP_HEADERS` | _Optional_ — auth for the endpoint (e.g. `x-honeycomb-team=…` when exporting straight to Honeycomb). Omit when exporting to an unauthenticated internal collector. | **secrets store / CI env** | **no — it's a secret** |
 | `OTEL_SERVICE_NAME` | names the Honeycomb dataset (see step 1) | launch script | yes |
 | `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (see step 2) | launch env (values may vary per env) | yes (keys) |
 | `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (see step 1) | launch script | yes |
@@ -52,7 +52,7 @@ do not assume they'll infer it:
   ```
   # Add to your launch environment before running:
   export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
-  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   # keep in secrets, not git
+  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   # optional: auth for the endpoint; omit for an internal collector. Keep in secrets, not git.
   export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
   ```
 

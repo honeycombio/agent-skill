@@ -24,12 +24,52 @@ Highlevel overview of how to do Open Telemetry instrumentation:
 3. Create weaver registry
 4. Add business context instrumentation
 
+## Required environment variables
+
+Several settings must be **real environment variables set in the runtime environment
+before the process (or language agent) starts** — not assigned from inside application
+code. Instrumentation libraries read these once at initialization, often before your
+own code runs, so setting them in-process (`os.environ`, `os.Setenv`, `System.setProperty`)
+is unreliable. Set them in the launch command, entrypoint, start script, Dockerfile,
+systemd unit, Procfile, or your platform's env/secrets config.
+
+| Variable | Purpose | Where to set | Commit to source? |
+|---|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb) | launch env / container env | yes |
+| `OTEL_EXPORTER_OTLP_HEADERS` | ingest key (`x-honeycomb-team=…`) | **secrets store / CI env** | **no — it's a secret** |
+| `OTEL_SERVICE_NAME` | names the Honeycomb dataset (see step 1) | launch script | yes |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (see step 2) | launch env (values may vary per env) | yes (keys) |
+| `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (see step 1) | launch script | yes |
+
+When you finish instrumenting, **communicate this contract to the user explicitly** —
+do not assume they'll infer it:
+
+- Set what you can in committed launch config (start script, Dockerfile, etc.) and say
+  what you set and where.
+- For anything the user must set themselves (especially secrets), print a copy-pasteable
+  block, e.g.:
+
+  ```
+  # Add to your launch environment before running:
+  export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
+  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   # keep in secrets, not git
+  export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
+  ```
+
 ## 1. Enable auto-instrumentation
 
 Install the OpenTelemetry SDK plus the auto-instrumentation packages for the
 app's language and frameworks (HTTP server, database client, etc.). Configure
 the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
+
+**Upgrade all OpenTelemetry dependencies to their latest versions.** Whether you
+are adding OTel for the first time or building on existing instrumentation, pin
+the SDK, exporters, and every auto-instrumentation/contrib package (and language
+agents like the OTel Java agent) to the most recent release. Newer versions emit
+the current semantic conventions, fix bugs, and support options older releases
+ignore — stale dependencies are a common cause of missing or legacy-named
+telemetry. After upgrading, rebuild and confirm the app still compiles and runs.
 
 **Always set `service.name`.** Honeycomb uses `service.name` to name the dataset,
 so traces are only grouped correctly when it is set — never leave it to default

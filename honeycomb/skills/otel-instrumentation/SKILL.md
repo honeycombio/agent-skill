@@ -67,6 +67,21 @@ emits. The registry is the single source of truth for each attribute's name, typ
 meaning — giving consistent, well-typed names across the codebase and letting tooling
 verify that emitted telemetry matches the contract.
 
+**Extend the latest OTel semantic conventions; don't reinvent them.** Build your
+registry on top of the current [OTel semantic conventions](https://github.com/open-telemetry/semantic-conventions)
+release rather than defining your own names for things they already cover. Reuse the
+published attributes (`http.*`, `db.*`, `user.*`, etc.) wherever one fits, and reserve
+custom attributes for genuinely app-specific concepts the conventions don't model. In
+the manifest, declare the upstream registry as a dependency so weaver resolves against
+it and flags any attribute that duplicates or conflicts with a standard one:
+
+```yaml
+dependencies:
+  - name: otel
+    # pin the latest semantic-conventions release
+    registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.39.0.zip[model]
+```
+
 Create it in a `weaver/` directory at the repository root:
 
 - `weaver/manifest.yaml` — the registry manifest:

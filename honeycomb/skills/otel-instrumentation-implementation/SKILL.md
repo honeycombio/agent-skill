@@ -129,8 +129,8 @@ registry that defines it. Don't enumerate them by hand — add an `imports` bloc
 group file that pulls in the upstream attribute groups wholesale:
 
 ```yaml
-# in a group file alongside `groups:` — makes the registry self-describing, so plain
-# `weaver registry check` / `live-check` resolve standard attributes with no extra flags.
+# in a group file alongside `groups:` — makes the registry self-describing, so the
+# standard attributes your telemetry emits resolve against it with no extra flags.
 imports:
   attribute_groups:
     - registry.*    # build on every upstream semconv attribute group
@@ -165,28 +165,11 @@ Create it in a `weaver/` directory at the repository root:
           examples: ["u_123"]
   ```
 
-Validate the registry before finishing, and fix anything it reports. `check` confirms
-the registry is structurally sound and the dependency + imports resolve:
-
-```
-weaver registry check --registry weaver
-```
-
-Then confirm the registry actually covers the telemetry your app emits. Run a
-live-check against real spans (e.g. a captured OTLP/JSON sample, or live OTLP during the
-verification step) — with the `imports` block in place, standard semconv attributes
-resolve with no extra flags:
-
-```
-weaver registry live-check --registry weaver \
-  --input-source <captured-otlp.json> --input-format json
-```
-
-Remaining violations now point at real problems — a genuinely misnamed custom
-attribute, or an attribute that should reuse a standard semconv name but doesn't. Fix
-those. (Attributes emitted by instrumentation libraries but absent from semconv, e.g.
-`asgi.event.type`, and host/resource attributes injected by the runtime are expected
-and not something your registry must define.)
+Keep custom attributes strictly under your own namespace (`app.*`). Never add an
+attribute under a standard semconv namespace you import (`db.*`, `http.*`, `server.*`,
+…) — e.g. don't invent `db.rows_affected`; use the standard attribute if one fits
+(`db.response.returned_rows`) or namespace it as `app.*`. Defining your own attribute
+inside an imported namespace collides with it and will be rejected at verification.
 
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business

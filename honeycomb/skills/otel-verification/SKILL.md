@@ -56,6 +56,27 @@ one — and **remove it again once verification passes**:
 Capture the output to a file you can read (e.g. redirect the app's stdout, or write the
 exporter to a path).
 
+If the implementer created a **weaver registry** (a `weaver/` directory) and the `weaver`
+CLI is available, also capture the telemetry into a live-check against that registry — this
+is what catches attribute-naming defects the manual span review can't (a custom attribute
+placed under a standard namespace, a misnamed attribute). weaver consumes telemetry over
+OTLP, so start it as a receiver **before** you launch the app and point the app's OTLP
+exporter at it (this is still backend-free — weaver is a local CLI, not a collector):
+
+```
+# start the receiver; it writes a JSON report when you POST /stop
+weaver registry live-check --registry weaver \
+  --input-source otlp --otlp-grpc-port 4317 --admin-port 4320 \
+  --format json --output ./weaver-report &
+```
+
+Then in step 2 launch the app with `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`,
+`OTEL_EXPORTER_OTLP_PROTOCOL=grpc`, and `OTEL_TRACES_EXPORTER=otlp,console` so the same
+traffic run feeds both the console file (for the checks below) and weaver. **Do not pass
+`--include-unreferenced`** — a correct registry imports the upstream semconv groups it
+builds on, so standard attributes resolve on their own; the flag would mask a registry that
+doesn't.
+
 ### Don't guess how to run the app — use the provided commands, or ask
 
 Knowing exactly **how to start the app** and **how to exercise it end-to-end** is what makes
@@ -111,8 +132,32 @@ Read the span file/output and confirm every item. This is a required checklist:
   propagation).
 - [ ] **Exceptions/outcomes** are recorded on spans where errors occur (exercise an error path
   to confirm).
+- [ ] **Registry conformance** (when a `weaver/` registry exists) — the weaver live-check
+  report shows **zero `violation`-level advice** (see step 5).
 
-### 5. Report a verdict with evidence
+### 5. Check telemetry against the weaver registry (when one exists)
+
+If you started a weaver live-check receiver in step 1, finalize it and read the verdict:
+
+```
+curl -X POST http://localhost:4320/stop        # weaver writes ./weaver-report/live_check.json
+```
+
+Inspect `statistics.advice_level_counts` in the report. Treat any **`violation`** as a
+**FAIL**, and cite the offending attribute. The common ones:
+
+- An attribute defined under a standard semconv namespace (e.g. `db.rows_affected`
+  colliding with the imported `db.*`) — it must move to your own `app.*` namespace or reuse
+  the standard attribute (`db.response.returned_rows`).
+- A custom name that should have reused a standard semconv attribute.
+
+**Not** failures: `improvement`-level advice (e.g. `stability: development` on your own
+custom attributes), and attributes emitted by instrumentation libraries but absent from
+semconv (e.g. `asgi.event.type`) or injected by the runtime (host/process resource
+attributes). If `total_entities` is 0, weaver received no telemetry — treat that like
+"no spans", not a pass.
+
+### 6. Report a verdict with evidence
 
 Report **PASS** only if every check passes. Otherwise report **FAIL** and, for each failed
 check, the concrete evidence — the exact legacy attribute names observed, which operations

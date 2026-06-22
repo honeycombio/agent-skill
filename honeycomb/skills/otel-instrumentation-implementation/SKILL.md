@@ -110,14 +110,30 @@ registry on top of the current [OTel semantic conventions](https://github.com/op
 release rather than defining your own names for things they already cover. Reuse the
 published attributes (`http.*`, `db.*`, `user.*`, etc.) wherever one fits, and reserve
 custom attributes for genuinely app-specific concepts the conventions don't model. In
-the manifest, declare the upstream registry as a dependency so weaver resolves against
-it and flags any attribute that duplicates or conflicts with a standard one:
+the manifest, declare the upstream registry as a dependency:
 
 ```yaml
 dependencies:
   - name: otel
     # pin the latest semantic-conventions release
     registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.39.0.zip[model]
+```
+
+**Critical — declaring the dependency is not enough; you must `import` from it.** A
+`dependencies:` entry alone does **not** merge the upstream attributes into your
+registry. weaver treats a dependency's attributes as part of *your* registry only when
+your registry actually references them. Without that, every standard attribute your
+auto-instrumentation emits (`http.request.method`, `db.query.text`, `server.address`,
+…) is reported as *"does not exist in the registry"* even though you depend on the
+registry that defines it. Don't enumerate them by hand — add an `imports` block to a
+group file that pulls in the upstream attribute groups wholesale:
+
+```yaml
+# in a group file alongside `groups:` — makes the registry self-describing, so plain
+# `weaver registry check` / `live-check` resolve standard attributes with no extra flags.
+imports:
+  attribute_groups:
+    - registry.*    # build on every upstream semconv attribute group
 ```
 
 Create it in a `weaver/` directory at the repository root:
@@ -130,10 +146,13 @@ Create it in a `weaver/` directory at the repository root:
   schema_url: https://<your-domain>/schemas/<app-name>/0.1.0
   ```
 
-- one or more group files alongside it (e.g. `weaver/app.yaml`) declaring your
-  attributes:
+- one or more group files alongside it (e.g. `weaver/app.yaml`) — the `imports` block
+  plus your custom attributes:
 
   ```yaml
+  imports:
+    attribute_groups:
+      - registry.*
   groups:
     - id: registry.app
       type: attribute_group
@@ -146,11 +165,28 @@ Create it in a `weaver/` directory at the repository root:
           examples: ["u_123"]
   ```
 
-Validate the registry before finishing, and fix anything it reports:
+Validate the registry before finishing, and fix anything it reports. `check` confirms
+the registry is structurally sound and the dependency + imports resolve:
 
 ```
 weaver registry check --registry weaver
 ```
+
+Then confirm the registry actually covers the telemetry your app emits. Run a
+live-check against real spans (e.g. a captured OTLP/JSON sample, or live OTLP during the
+verification step) — with the `imports` block in place, standard semconv attributes
+resolve with no extra flags:
+
+```
+weaver registry live-check --registry weaver \
+  --input-source <captured-otlp.json> --input-format json
+```
+
+Remaining violations now point at real problems — a genuinely misnamed custom
+attribute, or an attribute that should reuse a standard semconv name but doesn't. Fix
+those. (Attributes emitted by instrumentation libraries but absent from semconv, e.g.
+`asgi.event.type`, and host/resource attributes injected by the runtime are expected
+and not something your registry must define.)
 
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business

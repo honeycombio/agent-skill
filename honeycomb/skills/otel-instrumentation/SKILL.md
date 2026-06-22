@@ -1,8 +1,9 @@
 ---
 name: otel-instrumentation
 description: >
-  Provides guidance on OpenTelemetry SDK setup, custom instrumentation,
-  and sending data to Honeycomb.
+  Orchestrates an end-to-end OpenTelemetry instrumentation engagement: instrument an application
+  and independently verify the emitted telemetry. Coordinates an implementer and a verifier rather
+  than doing (and judging) everything in one place.
   Trigger phrases: "instrument my app", "add tracing",
   "set up OpenTelemetry", "configure OTel", "add custom spans",
   "add attributes to spans", "send traces to Honeycomb",
@@ -12,158 +13,61 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "1.0.0"
+  version: "2.1.0"
 ---
 
-# OpenTelemetry Instrumentation
+# Role
 
-Highlevel overview of how to do Open Telemetry instrumentation:
+You are the **conductor** of the OpenTelemetry instrumentation process. You coordinate two
+separate sub-agents and do **none** of the work yourself — and that cuts two ways:
 
-1. Enable auto-instrumentation
-2. Add service.version
-3. Create weaver registry
-4. Add business context instrumentation
+- You must not **write** the instrumentation. That is the `otel-instrumenter`'s job.
+- You must not **judge** whether it works. That is the `otel-verifier`'s job. You may not decide
+  it works by reading the code, by trusting the instrumenter's report, or by running a quick
+  check yourself.
 
-## Required environment variables
+**Your deliverable is _verified_ instrumentation, not instrumentation.** The engagement does not
+exist in a "done" state until an `otel-verifier` sub-agent has returned **PASS**. Until then it is,
+by definition, unfinished. The single most common failure here is declaring success the moment the
+instrumenter reports back — **resist it. Unverified instrumentation is presumed broken.**
 
-Several settings must be **real environment variables set in the runtime environment
-before the process (or language agent) starts** — not assigned from inside application
-code. Instrumentation libraries read these once at initialization, often before your
-own code runs, so setting them in-process (`os.environ`, `os.Setenv`, `System.setProperty`)
-is unreliable. Set them in the launch command, entrypoint, start script, Dockerfile,
-systemd unit, Procfile, or your platform's env/secrets config.
+# Workflow
 
-| Variable | Purpose | Where to set | Commit to source? |
-|---|---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb, or a local/internal collector) | launch env / container env | yes |
-| `OTEL_EXPORTER_OTLP_HEADERS` | _Optional_ — auth for the endpoint (e.g. `x-honeycomb-team=…` when exporting straight to Honeycomb). Omit when exporting to an unauthenticated internal collector. | **secrets store / CI env** | **no — it's a secret** |
-| `OTEL_SERVICE_NAME` | names the Honeycomb dataset (see step 1) | launch script | yes |
-| `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (see step 2) | launch env (values may vary per env) | yes (keys) |
-| `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (see step 1) | launch script | yes |
+1. **Delegate implementation** — spawn the **`otel-instrumenter`** sub-agent (Task tool). Give it
+   the repo path and the same prompt that you were given, and add explicit instructions to use the
+   `otel-instrumentation-implementation` skill. It implements only — it does not self-verify.
 
-When you finish instrumenting, **communicate this contract to the user explicitly** —
-do not assume they'll infer it:
+2. **Delegate verification — always, every time** — spawn the **`otel-verifier`** sub-agent (a
+   fresh, independent context) to apply the `otel-verification` skill: add a file/console exporter,
+   start the app, run **real tests**, inspect the emitted spans, and return a **PASS/FAIL verdict
+   with evidence**. The instrumenter's summary is a **claim, not evidence** — it always says it
+   succeeded. The following are **NOT verification** and must never be accepted in place of
+   spawning `otel-verifier`: the instrumenter's report; a code review or static analysis; an
+   `Explore` agent; "the app builds/starts/imports cleanly"; your own inspection. The only
+   acceptable evidence is a PASS verdict from a freshly-spawned `otel-verifier` that ran the app
+   under real traffic.
 
-- Set what you can in committed launch config (start script, Dockerfile, etc.) and say
-  what you set and where.
-- For anything the user must set themselves (especially secrets), print a copy-pasteable
-  block, e.g.:
+3. **Gate and loop** — On **FAIL**, spawn `otel-instrumenter` again with the verifier's exact
+   findings to fix precisely those, then re-run a fresh `otel-verifier`. You may exit this loop
+   **only** when `otel-verifier` returns PASS, or after **3** full cycles — **never** because the
+   instrumenter said it was done.
 
-  ```
-  # Add to your launch environment before running:
-  export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
-  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   # optional: auth for the endpoint; omit for an internal collector. Keep in secrets, not git.
-  export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
-  ```
+4. **Finish** — Before you finish, confirm you actually spawned `otel-verifier` and it returned
+   PASS. If you skipped it, or only did a static/inline check, you are not done — spawn it now.
+   On PASS, summarize what was instrumented and **communicate the required environment-variable
+   contract** to the user (which vars to set, where, which are secrets — see the implementation
+   skill). Your final report **must quote the `otel-verifier`'s PASS verdict and its evidence
+   verbatim** — if you cannot quote a verifier verdict, you have not finished. If it still fails
+   after 3 cycles, stop and report honestly which checks fail and what was tried — do not claim
+   success.
 
-## 1. Enable auto-instrumentation
+## Rules
 
-Install the OpenTelemetry SDK plus the auto-instrumentation packages for the
-app's language and frameworks (HTTP server, database client, etc.). Configure
-the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
-and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
+- Treat the verifier's verdict as authoritative; never overrule it by reading the code.
+- The instrumenter's report is a claim, not evidence — only an `otel-verifier` PASS counts as done.
+- Re-run verification fresh each cycle; never reuse a prior PASS.
+- "The app starts/imports cleanly" is **not** verification — only spans observed under real test conditions.
 
-**Upgrade all OpenTelemetry dependencies to their latest versions.** Whether you
-are adding OTel for the first time or building on existing instrumentation, pin
-the SDK, exporters, and every auto-instrumentation/contrib package (and language
-agents like the OTel Java agent) to the most recent release. Newer versions emit
-the current semantic conventions, fix bugs, and support options older releases
-ignore — stale dependencies are a common cause of missing or legacy-named
-telemetry. After upgrading, rebuild and confirm the app still compiles and runs.
+## If you cannot spawn sub-agents
 
-**Always set `service.name`.** Honeycomb uses `service.name` to name the dataset,
-so traces are only grouped correctly when it is set — never leave it to default
-(`unknown_service`). Prefer setting it via the `OTEL_SERVICE_NAME` environment
-variable in the application's startup scripts (the launch command, entrypoint,
-Dockerfile, systemd unit, Procfile, etc.) so it is applied consistently every
-time the app starts. Derive the name deterministically rather than inventing one:
-take it from the build configuration when available (e.g. the artifact/module
-name in `pom.xml`, `build.gradle`, `package.json`, `pyproject.toml`, `go.mod`),
-and otherwise fall back to the repository or project directory name. (Other
-resource attributes that legitimately vary per environment — see step 2 — can
-still come from `OTEL_RESOURCE_ATTRIBUTES`.)
-
-**Opt into stable semantic conventions.** Auto-instrumentation libraries still
-default to legacy attribute names (`http.method`, `http.status_code`,
-`db.statement`, `db.system`, `net.peer.ip`, …). Set
-`OTEL_SEMCONV_STABILITY_OPT_IN=http,database` (and pin recent instrumentation
-versions) so spans use the current names (`http.request.method`,
-`http.response.status_code`, `db.query.text`, `db.system.name`,
-`network.peer.address`, …). Verify after first traffic that the new names appear.
-
-## 2. Add service.version
-
-Attach `service.version` to the resource so every span can be correlated to a
-deploy. Source it from the build (git SHA, package version, or release tag) and
-set it via `OTEL_RESOURCE_ATTRIBUTES=service.version=<value>` or in the
-`Resource` you build in code. Add other stable resource attributes here too
-(`deployment.environment.name`, `service.namespace`) when available.
-
-## 3. Create weaver registry
-
-Define a custom semantic-convention registry with
-[OTel Weaver](https://github.com/open-telemetry/weaver) for the attributes your app
-emits. The registry is the single source of truth for each attribute's name, type, and
-meaning — giving consistent, well-typed names across the codebase and letting tooling
-verify that emitted telemetry matches the contract.
-
-**Extend the latest OTel semantic conventions; don't reinvent them.** Build your
-registry on top of the current [OTel semantic conventions](https://github.com/open-telemetry/semantic-conventions)
-release rather than defining your own names for things they already cover. Reuse the
-published attributes (`http.*`, `db.*`, `user.*`, etc.) wherever one fits, and reserve
-custom attributes for genuinely app-specific concepts the conventions don't model. In
-the manifest, declare the upstream registry as a dependency so weaver resolves against
-it and flags any attribute that duplicates or conflicts with a standard one:
-
-```yaml
-dependencies:
-  - name: otel
-    # pin the latest semantic-conventions release
-    registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.39.0.zip[model]
-```
-
-Create it in a `weaver/` directory at the repository root:
-
-- `weaver/manifest.yaml` — the registry manifest:
-
-  ```yaml
-  name: <app-name>
-  description: Custom semantic conventions for <app-name>
-  schema_url: https://<your-domain>/schemas/<app-name>/0.1.0
-  ```
-
-- one or more group files alongside it (e.g. `weaver/app.yaml`) declaring your
-  attributes:
-
-  ```yaml
-  groups:
-    - id: registry.app
-      type: attribute_group
-      brief: Custom application attributes
-      attributes:
-        - id: app.user.id
-          type: string
-          brief: Authenticated user id
-          stability: development
-          examples: ["u_123"]
-  ```
-
-Validate the registry before finishing, and fix anything it reports:
-
-```
-weaver registry check --registry weaver
-```
-
-Reference the registry-defined attribute names from your instrumentation (ideally via
-generated constants) instead of hardcoding attribute-name strings, so the business
-instrumentation in step 4 stays consistent and reviewable.
-
-## 4. Add business context instrumentation
-
-Auto-instrumentation captures the plumbing; this step captures the domain. Add
-attributes for the entities and decisions that matter when debugging — user/
-tenant IDs, order/cart IDs, feature flags, result counts, branch taken — onto
-the active span, using the registry-defined names from step 3. Create custom
-spans only for meaningful units of work not already covered by
-auto-instrumentation, and record exceptions and outcomes so failures are
-queryable.
+Refuse to do any of the work and explain to the user how to run this skill in a way that will be able to spawn sub-agents.

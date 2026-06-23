@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.2.3"
+  version: "1.2.4"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -39,55 +39,37 @@ the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
 
 **Let the OTLP transport follow `OTEL_EXPORTER_OTLP_PROTOCOL` — don't hardcode it.**
-The deployment picks the transport (`grpc` or `http/protobuf`) via that env var; select
-the exporter from the standard env vars (the SDK's autoconfiguring exporter, the language
-agent's default, or Go's `autoexport`) rather than pinning a transport in code. An exporter
-hardcoded to gRPC while the endpoint speaks `http/protobuf` (or vice versa) silently drops
-**all** telemetry with no error — and it's invisible to console-based checks, which bypass
-the OTLP path. Honoring the env var keeps the instrumentation portable to whatever endpoint
-the operator points it at.
+The deployment picks the transport (`grpc` or `http/protobuf`) via that env var. An exporter
+hardcoded to one transport while the endpoint speaks the other silently drops **all** telemetry
+with no error — and it's invisible to console-based checks, which bypass the OTLP path. Prefer
+**env-driven autoconfiguration** so you can't get this wrong (the language agent's default, the
+SDK's autoconfiguring exporter, or Go's `autoexport`). If you instead **construct exporters in
+code** — common in a manual SDK setup — importing a fixed `…proto.grpc…` (or `…proto.http…`)
+exporter class **ignores** `OTEL_EXPORTER_OTLP_PROTOCOL`; you are then responsible for reading it
+and selecting the matching exporter yourself. Honoring it keeps the instrumentation portable to
+whatever endpoint the operator points it at.
 
-**Emit all three signals — traces, metrics, and logs.** Don't stop at tracing:
-observability comes from correlating spans with metric trends and log records, so
-configure and export every signal over OTLP, not just traces.
+**Emit all three signals — traces, metrics, and logs**, not just tracing.
+- **With a language agent** (Java, Python, .NET, …): all three are usually on by default — keep them.
+  Leave `OTEL_{TRACES,METRICS,LOGS}_EXPORTER` at `otlp` (never `none`), and enable the agent's logging
+  bridge (Java Logback/Log4j appender, Python logging auto-instrumentation) so app logs export as OTLP.
+- **With a manual SDK setup** (Go, or any agent-less language): wire all three providers explicitly —
+  `TracerProvider`, `MeterProvider` (periodic reader), `LoggerProvider` — plus a bridge from the app's
+  logger (`slog`, `logging`, Logback) into the `LoggerProvider`, and install metric/log contrib
+  packages for the HTTP server and DB client, not only the tracing ones.
 
-- With a **language auto-instrumentation agent** (Java, Python, .NET, …), all three
-  signals are typically on by default — keep them on. Leave the per-signal exporter
-  vars at their default `otlp` (`OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`,
-  `OTEL_LOGS_EXPORTER`); never set any of them to `none`. For logs, enable the
-  agent's logging/appender bridge (e.g. the Java agent's Logback/Log4j appender,
-  Python's `OTEL_PYTHON_LOG_CORRELATION`/logging auto-instrumentation) so existing
-  application logs are exported as OTLP log records.
-- With a **manual SDK setup** (Go, or any language without an agent), wire up all
-  three providers explicitly: a `TracerProvider` + OTLP trace exporter, a
-  `MeterProvider` + OTLP metric exporter (with a periodic reader), and a
-  `LoggerProvider` + OTLP log exporter, plus a logging bridge that routes the app's
-  existing logger (e.g. Go `slog`, Python `logging`, Logback) into the
-  `LoggerProvider`. Install the metric and log auto-instrumentation/contrib packages
-  for the HTTP server and database client too, not only the tracing ones.
+Verify after first traffic that spans, metric datapoints, **and** log records all appear.
 
-Verify after first traffic that **spans, metric datapoints, and log records** all
-appear — not just spans.
+**Upgrade all OpenTelemetry dependencies to their latest releases** — SDK, exporters, every
+auto-instrumentation/contrib package, and any language agent. Stale versions emit legacy semconv
+names and miss options — a common cause of missing or wrong-named telemetry. Rebuild and confirm
+the app still runs.
 
-**Upgrade all OpenTelemetry dependencies to their latest versions.** Whether you
-are adding OTel for the first time or building on existing instrumentation, pin
-the SDK, exporters, and every auto-instrumentation/contrib package (and language
-agents like the OTel Java agent) to the most recent release. Newer versions emit
-the current semantic conventions, fix bugs, and support options older releases
-ignore — stale dependencies are a common cause of missing or legacy-named
-telemetry. After upgrading, rebuild and confirm the app still compiles and runs.
-
-**Always set `service.name`.** Honeycomb uses `service.name` to name the dataset,
-so a service's telemetry is only grouped correctly when it is set — never leave it to
-default (`unknown_service`). Prefer setting it via the `OTEL_SERVICE_NAME` environment
-variable in the application's startup scripts (the launch command, entrypoint,
-Dockerfile, systemd unit, Procfile, etc.) so it is applied consistently every
-time the app starts. Derive the name deterministically rather than inventing one:
-take it from the build configuration when available (e.g. the artifact/module
-name in `pom.xml`, `build.gradle`, `package.json`, `pyproject.toml`, `go.mod`),
-and otherwise fall back to the repository or project directory name. (Other
-resource attributes that legitimately vary per environment — see step 2 — can
-still come from `OTEL_RESOURCE_ATTRIBUTES`.)
+**Always set `service.name`** — Honeycomb names the dataset from it; never leave it at the
+`unknown_service` default. Set it via `OTEL_SERVICE_NAME` in the launch script (applied every start),
+and derive it deterministically: the artifact/module name from the build config (`pom.xml`,
+`package.json`, `pyproject.toml`, `go.mod`, …), else the repo/directory name. (Per-environment
+resource attributes — step 2 — still come from `OTEL_RESOURCE_ATTRIBUTES`.)
 
 **Opt into stable semantic conventions.** Auto-instrumentation libraries still
 default to legacy attribute names (`http.method`, `http.status_code`,
@@ -175,22 +157,15 @@ attribute under a standard semconv namespace you import (`db.*`, `http.*`, `serv
 (`db.response.returned_rows`) or namespace it as `app.*`. Defining your own attribute
 inside an imported namespace collides with it and will be rejected at verification.
 
-**Account for attributes your code doesn't set — in `weaver/libraries.yaml`.** The
-registry must be a *complete* description of the telemetry the app emits, and
-verification treats **any** undeclared attribute as a FAIL — including ones your code
-never sets, emitted by an instrumentation library or the runtime (for example, attributes
-the HTTP/ASGI/servlet layer or the language runtime adds to spans). Standard semconv attributes
-(`http.*`, `db.*`, `process.*`, `host.*`, …) are already covered by the `imports` block,
-so they won't be flagged. For the rest — library/framework attributes that aren't in
-semconv — declare them in a **separate** `weaver/libraries.yaml` group file, kept apart
-from your own `app.*` attributes so it's clear which attributes the app authors versus
-which it merely passes through:
+**Account for attributes your code doesn't set — in `weaver/libraries.yaml`.** Verification treats
+**any** undeclared attribute as a FAIL, including ones a library or the runtime emits (e.g. what the
+HTTP/ASGI/servlet layer adds to spans). Standard semconv attrs are already covered by the `imports`
+block; declare the rest — library/framework attributes not in semconv — in a **separate**
+`weaver/libraries.yaml` group, kept apart from your `app.*` attributes so authorship is clear:
 
 ```yaml
-# weaver/libraries.yaml — attributes emitted by instrumentation libraries / the runtime
-# (NOT set by app code) but present in the telemetry. Cataloguing them keeps the registry
-# complete so weaver's missing_attribute checks pass. Do NOT list semconv attributes here
-# (the imports block already covers those); only library/framework-specific ones.
+# weaver/libraries.yaml — attributes a library/runtime emits (NOT set by app code). Only
+# library-specific ones; semconv attributes are already covered by the imports block.
 groups:
   - id: registry.libraries
     type: attribute_group
@@ -233,13 +208,18 @@ same way, using its exact semconv `metric_name`, `instrument`, and `unit`. As wi
 library attributes above, populate these **reactively** — declare a metric only once the
 live-check reports it missing, not speculatively.
 
-**Validate that the registry RESOLVES — not just that it parses.** Run `weaver registry check`
-to confirm the files are well-formed, but be aware it does **not** catch a missing or misplaced
-`imports` block — the single most common and most damaging registry defect. Without that block the
-dependency alone merges nothing, so the live-check flags *every* standard attribute your telemetry
-emits (hundreds to tens of thousands of `missing_attribute` violations). Catch it deterministically,
-with no telemetry needed, by confirming an upstream semconv attribute actually resolves **into** your
-registry:
+Reference the registry-defined attribute names from your instrumentation (ideally via
+generated constants) instead of hardcoding attribute-name strings, so the business
+instrumentation in step 4 stays consistent and reviewable.
+
+## 3b. Verify the registry resolves — do not skip
+
+`weaver registry check` confirms the files are well-formed, but it does **not** catch a missing or
+misplaced `imports` block — the single most common and most damaging registry defect. Without that
+block the dependency merges nothing, so the live-check flags *every* standard attribute your
+telemetry emits (hundreds to tens of thousands of `missing_attribute` violations). Catch it
+deterministically, with no telemetry needed, by confirming an upstream semconv attribute actually
+resolves **into** your registry:
 
 ```bash
 # point -r at your registry dir (the one holding manifest.yaml)
@@ -250,10 +230,6 @@ weaver registry resolve -r weaver --format json \
 
 If this prints `IMPORTS MISSING`, fix the `imports` block before continuing — passing
 `weaver registry check` is **not** evidence the import worked.
-
-Reference the registry-defined attribute names from your instrumentation (ideally via
-generated constants) instead of hardcoding attribute-name strings, so the business
-instrumentation in step 4 stays consistent and reviewable.
 
 ## 4. Add business context instrumentation
 
@@ -287,20 +263,15 @@ must be real environment variables, set before the process starts (see the note 
 | `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER` | keep all three at `otlp` so every signal is exported — never `none` (step 1) | launch script | yes |
 
 - Set what you can in committed launch config (start script, Dockerfile, etc.) and say what you set and where.
-- For anything the operator must set (especially secrets), print a copy-pasteable block:
+- For what the operator must supply (especially the secret), print a copy-pasteable block:
 
   ```
   # Add to your launch environment before running:
   export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
-  # optional: auth for the endpoint; omit for an internal collector. Keep in secrets, not git.
-  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"
-  # To use the latest semantic naming conventions where possible.
+  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   # secret — keep out of git
   export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
-  # Export all three signals over OTLP (these are the defaults — set explicitly so none is disabled).
-  export OTEL_TRACES_EXPORTER=otlp
-  export OTEL_METRICS_EXPORTER=otlp
-  export OTEL_LOGS_EXPORTER=otlp
   ```
+  (The `OTEL_*_EXPORTER` vars default to `otlp`; set them explicitly only if something might override them.)
 
 ## Fixing verifier findings
 

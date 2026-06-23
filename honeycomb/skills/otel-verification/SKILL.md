@@ -12,7 +12,7 @@ description: >
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.2.2"
+  version: "1.2.3"
 ---
 
 # OpenTelemetry Verification
@@ -54,6 +54,21 @@ type mismatch. Inspecting the captured telemetry yourself is **not** a substitut
 present and still violated, and only weaver will tell you. (Running `weaver registry check` is also not
 a substitute: that validates the registry *files* statically; only `weaver registry live-check`
 compares them against the telemetry the app actually emits.)
+
+**First, a deterministic gate the live-check can't fool.** The most common and most damaging registry
+defect is a missing/misplaced `imports` block — it makes the live-check flag *every* standard
+attribute. A live-check run with `--include-unreferenced`, or pointed at the wrong registry, hides
+exactly this; `weaver registry resolve` cannot be fooled. Run it first, against the checkout's
+registry:
+
+```bash
+# point -r at the checkout's registry dir (the one holding manifest.yaml)
+weaver registry resolve -r weaver --format json | grep -q 'http.request.method' \
+  && echo 'imports OK' || echo 'IMPORTS MISSING'
+```
+
+`IMPORTS MISSING` is an immediate **FAIL** — report it and do not let a clean live-check override it.
+This catches only the imports defect, so still run the full live-check below for everything else.
 
 weaver receives telemetry over OTLP, so start it **before** the app, on **free ports** so concurrent
 verifications don't collide:

@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "2.1.0"
+  version: "2.2.0"
 ---
 
 # Role
@@ -38,9 +38,9 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
    `otel-instrumentation-implementation` skill. It implements only — it does not self-verify.
 
 2. **Delegate verification — always, every time** — spawn the **`otel-verifier`** sub-agent (a
-   fresh, independent context) to apply the `otel-verification` skill: add a file/console exporter,
-   start the app, run **real tests**, inspect the emitted spans, and return a **PASS/FAIL verdict
-   with evidence**. **Relay the concrete run/exercise details to it** — the verifier starts with no
+   fresh, independent context) to apply the `otel-verification` skill: add file/console exporters,
+   start the app, run **real tests**, inspect the emitted telemetry (spans, metrics, and logs), and
+   return a **PASS/FAIL verdict with evidence**. **Relay the concrete run/exercise details to it** — the verifier starts with no
    context, so pass along, verbatim, whatever the prompt you were given specified about *how to run
    and exercise this app*: the exact command to start it, the ports it binds, and the
    traffic/test/load command or script to drive it (e.g. a provided traffic script, `make test`, a
@@ -58,7 +58,8 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
    then re-run a fresh `otel-verifier`. **Paste the verifier's findings into the new task verbatim** —
    the re-spawned instrumenter is a fresh context that *cannot see the verifier's report*, so it only
    knows what you put in its prompt. Copy the concrete evidence as the verifier wrote it: the exact
-   attribute names, the exact span/operation names, which spans were orphaned, which produced no spans.
+   attribute names, the exact span/operation names, which spans were orphaned, which produced no spans,
+   whether the metrics or logs capture was empty.
    Do **not** paraphrase to a topic ("fix the DB semconv names") — a summary forces the instrumenter to
    re-discover the specifics the verifier already pinpointed, wasting the cycle. You may exit this loop
    **only** when `otel-verifier` returns PASS, or after **3** full cycles — **never** because the

@@ -3,14 +3,16 @@ name: otel-verification
 description: >
   Independently verify that an application's OpenTelemetry instrumentation actually
   emits correct telemetry — by running the app, generating real traffic, capturing the
-  emitted spans to a file, and checking them against a contract. Needs no backend and no
+  emitted telemetry (spans, metric datapoints, and log records) to a file, and checking
+  it against a contract. Needs no backend and no
   collector. Trigger phrases: "verify my instrumentation", "check my telemetry",
-  "are my spans correct", "verify the OTel output", "did the instrumentation work",
+  "are my spans correct", "are my metrics arriving", "are my logs exported",
+  "verify the OTel output", "did the instrumentation work",
   "validate my spans", "check semantic conventions", or any request to confirm that
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.0.0"
+  version: "1.2.2"
 ---
 
 # OpenTelemetry Verification
@@ -20,14 +22,15 @@ looks right or that the app boots.
 
 ## Core principle: verify the telemetry, not the intent
 
-Treat the instrumentation as **unverified until proven**. Judge it only from the spans the
-application emits under **real traffic** — never from reading the source, and never from the app
-merely starting or importing cleanly. An app can start perfectly and still emit zero spans, legacy
-attribute names, or orphaned traces. **If you didn't see the spans, you haven't verified.**
+Treat the instrumentation as **unverified until proven**. Judge it only from the telemetry the
+application emits under **real traffic** — all three signals: **spans, metric datapoints, and log
+records** — never from reading the source, and never from the app merely starting or importing
+cleanly. An app can start perfectly and still emit zero spans, no metrics, no logs, legacy
+attribute names, or orphaned traces. **If you didn't see the telemetry, you haven't verified.**
 
-This skill is **offline and backend-free**: it captures spans locally with the SDK's or agent's own
-exporter, so it needs no OTLP backend (no Honeycomb) and no collector. (To verify against traces that
-already reached Honeycomb, use the `verify-recent-trace` skill instead.)
+This skill is **offline and backend-free**: it captures telemetry locally with the SDK's or agent's
+own exporters, so it needs no OTLP backend (no Honeycomb) and no collector. (To verify against
+telemetry that already reached Honeycomb, use the `verify-recent-trace` skill instead.)
 
 ## Procedure
 
@@ -41,12 +44,19 @@ guessing wrong ports or env makes it hollow. Resolve both before going further:
 2. **Otherwise ask the user:** "How do I start your app (command + ports)?" and "How do I exercise it
    end-to-end (a test/traffic command, or the key routes)?"
 
-### 2. If a `weaver/` registry exists, start a weaver live-check receiver
+### 2. If a `weaver/` registry exists, the live-check is MANDATORY
 
-When the implementer created a `weaver/` directory and the `weaver` CLI is available, run the
-telemetry through a registry live-check — it catches attribute-naming defects the manual span review
-can't (a custom attribute under a standard namespace, a misnamed attribute). weaver receives telemetry
-over OTLP, so start it **before** the app, on **free ports** so concurrent verifications don't collide:
+**If the implementer created a `weaver/` directory, you must run a registry live-check — it is not
+optional, and you cannot return PASS without one.** The live-check is the *only* thing that catches an
+entire class of defects the manual review by eye cannot: an undeclared attribute or metric
+(`missing_attribute` / `missing_metric`), a custom attribute colliding with a standard namespace, a
+type mismatch. Inspecting the captured telemetry yourself is **not** a substitute — a registry can be
+present and still violated, and only weaver will tell you. (Running `weaver registry check` is also not
+a substitute: that validates the registry *files* statically; only `weaver registry live-check`
+compares them against the telemetry the app actually emits.)
+
+weaver receives telemetry over OTLP, so start it **before** the app, on **free ports** so concurrent
+verifications don't collide:
 
 ```
 GRPC=$(python3 -c 'import socket;s=socket.socket();s.bind(("",0));print(s.getsockname()[1]);s.close()')
@@ -60,9 +70,10 @@ weaver registry live-check --registry weaver \
 **Do not pass `--include-unreferenced`** — a correct registry imports the upstream semconv groups it
 builds on, so standard attributes resolve on their own; the flag would mask a registry that doesn't.
 
-No registry? Skip this step — the span capture below is all you need.
+No `weaver/` registry in the checkout? Only then skip this step — the telemetry capture below is all
+you need. If a registry *is* present, this step is required for a PASS verdict.
 
-### 3. Set up span capture
+### 3. Set up telemetry capture
 
 You need the spans as **structured records** carrying attributes **and parent/trace IDs** (the
 trace-structure check depends on parents). Add a structured exporter to the app and capture its output
@@ -84,11 +95,34 @@ record is a **single JSON line**, so extract those:
   `grep -o '{"resourceSpans".*}' app.log > spans.jsonl`.
 - **Node:** `ConsoleSpanExporter` from `@opentelemetry/sdk-trace-base`; extract the same way.
 
-If you started weaver in step 2, also send spans to it: keep `otlp` in the exporter list and point it
-at weaver — `OTEL_TRACES_EXPORTER=otlp,<local exporter>`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$GRPC`,
-`OTEL_EXPORTER_OTLP_PROTOCOL=grpc`. One traffic run then feeds both the span file and weaver.
-
 The clean span file (`spans.json` / `spans.jsonl`, one record per line) is what you inspect in step 6.
+
+**Capture metrics and logs too.** Verification covers all three signals, so also turn on a console/file
+exporter for the other two and confirm they produce output. With most SDKs and language agents the
+simplest path is `OTEL_METRICS_EXPORTER=console` and `OTEL_LOGS_EXPORTER=console`. For a manual SDK
+setup, add a `ConsoleMetricExporter` and a `ConsoleLogRecordExporter`. Capture each to its own file or
+grep its JSON lines out of the app log, the same way as spans.
+
+**Shorten the metric export interval for the run.** Metrics export on a 60-second periodic cycle by
+default — longer than a verification run, so you'd capture zero metric datapoints even though the
+instrumentation is correct. Set `OTEL_METRIC_EXPORT_INTERVAL=10000` (10s) in the launch environment so
+metrics actually flush while traffic is flowing. (Traces and logs use a few-second batch cadence and
+don't need this.) This is a verification-runtime concern only; don't bake a short interval into the
+app's committed config.
+
+**Feed weaver all three signals — not just traces (if you started it in step 2).** weaver's
+`missing_metric` and attribute checks only fire on signals it actually receives, so routing only
+traces would make the metric (and log) conformance checks silently pass on telemetry weaver never
+saw. Keep `otlp` in **every** signal's exporter list and point the shared OTLP endpoint at weaver's
+gRPC port, so one traffic run feeds the capture files **and** weaver across all three signals:
+
+```
+OTEL_TRACES_EXPORTER=otlp,<trace file/console exporter>
+OTEL_METRICS_EXPORTER=otlp,console
+OTEL_LOGS_EXPORTER=otlp,console
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$GRPC   # weaver's gRPC port from step 2
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+```
 
 ### 4. Start the app — once
 
@@ -110,9 +144,9 @@ every instrumented path:
 server's instrumentation; reading the code. If you genuinely cannot generate traffic here, report the
 verification as **blocked** — not a pass.
 
-### 6. Check the span contract
+### 6. Check the telemetry contract
 
-Read the span file and confirm every item:
+Read the captured files and confirm every item:
 
 - [ ] **Spans exist** for each operation you exercised (HTTP routes, DB queries, custom work).
 - [ ] **Current semantic conventions present, legacy absent.** Stable names appear
@@ -127,9 +161,17 @@ Read the span file and confirm every item:
 - [ ] **Trace structure** is connected — spans from one request share a trace id and parent correctly;
   no unexpected root/orphan spans (a sign of broken context propagation).
 - [ ] **Exceptions/outcomes** are recorded on spans where errors occur.
-- [ ] **Registry conformance** (if weaver is running) — zero `violation`-level advice (step 7).
+- [ ] **Metric datapoints exist** — the metrics capture is non-empty after traffic. At minimum the
+  HTTP server-duration metric (`http.server.request.duration`) and any runtime/process metrics the
+  agent emits should appear; an empty metrics capture means the metrics signal was never exported.
+- [ ] **Log records exist** — the logs capture is non-empty, carrying the app's log lines as OTLP log
+  records (with `severity`/`body`, and `trace_id`/`span_id` when emitted inside a span). An empty logs
+  capture means the logging bridge isn't wired to the `LoggerProvider`.
+- [ ] **Registry conformance** — if a `weaver/` registry exists, the live-check **must** have run
+  and shown zero `violation`-level advice (step 7). A registry present but unchecked is an automatic
+  FAIL, not a pass — you have no evidence either way.
 
-### 7. Read the weaver verdict (if you started it)
+### 7. Read the weaver verdict (whenever a registry was present)
 
 Finalize the live-check and read the report:
 
@@ -142,7 +184,7 @@ attribute. Common ones:
 
 - A **`missing_attribute`** ("attribute … does not exist in the registry"). **Every one is a FAIL —
   including attributes the app's own code never sets**, i.e. ones emitted by an instrumentation library
-  or the runtime (`asgi.event.type`, framework/host/process attributes, …). The registry is meant to be
+  or the runtime (framework/host/process attributes the app code never sets, …). The registry is meant to be
   a *complete* description of the telemetry the app emits, so an undeclared attribute is a real gap: it
   must be added to the registry (the fix differs by origin — see the implementation skill's
   `libraries.yaml` guidance for library/runtime attributes you don't control).
@@ -157,9 +199,12 @@ pass.
 
 ### 8. Report a verdict with evidence
 
-Report **PASS** only if every check passes. Otherwise report **FAIL** and, for each failed check, the
-concrete evidence — the exact legacy attribute names observed, which operations produced no spans, which
-spans were orphaned — so the instrumentation can be fixed. "Looks good" is not a verdict; cite the spans.
+Report **PASS** only if every check passes — and if a `weaver/` registry exists, only if the
+live-check actually ran and came back clean (a present-but-unchecked registry is a FAIL). Otherwise
+report **FAIL** and, for each failed check, the concrete evidence — the exact legacy attribute names
+observed, which operations produced no spans, which spans were orphaned, whether the metrics or logs
+capture was empty, the exact `missing_attribute`/`missing_metric`/type-mismatch advice from weaver — so
+the instrumentation can be fixed. "Looks good" is not a verdict; cite the telemetry.
 
 If invoked as a hand-off from instrumentation, return this verdict to the caller: the instrumentation is
 **not complete** until verification returns PASS; on FAIL, the findings must be fixed and verification

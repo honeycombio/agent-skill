@@ -2,13 +2,14 @@
 name: otel-instrumentation-implementation
 description: >
   Implementation playbook for APPLYING OpenTelemetry instrumentation to an application — the
-  concrete steps: enable auto-instrumentation and opt into stable semantic conventions, add
-  service.version, create a weaver registry, add business-context spans, and set/communicate the
-  required environment-variable contract. This is the "how to actually write the instrumentation"
+  concrete steps: enable auto-instrumentation across all three signals (traces, metrics, and
+  logs) and opt into stable semantic conventions, add service.version, create a weaver registry,
+  add business-context instrumentation, and set/communicate the required environment-variable
+  contract. This is the "how to actually write the instrumentation"
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.0.0"
+  version: "1.2.2"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -37,6 +38,37 @@ app's language and frameworks (HTTP server, database client, etc.). Configure
 the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
 
+**Let the OTLP transport follow `OTEL_EXPORTER_OTLP_PROTOCOL` — don't hardcode it.**
+The deployment picks the transport (`grpc` or `http/protobuf`) via that env var; select
+the exporter from the standard env vars (the SDK's autoconfiguring exporter, the language
+agent's default, or Go's `autoexport`) rather than pinning a transport in code. An exporter
+hardcoded to gRPC while the endpoint speaks `http/protobuf` (or vice versa) silently drops
+**all** telemetry with no error — and it's invisible to console-based checks, which bypass
+the OTLP path. Honoring the env var keeps the instrumentation portable to whatever endpoint
+the operator points it at.
+
+**Emit all three signals — traces, metrics, and logs.** Don't stop at tracing:
+observability comes from correlating spans with metric trends and log records, so
+configure and export every signal over OTLP, not just traces.
+
+- With a **language auto-instrumentation agent** (Java, Python, .NET, …), all three
+  signals are typically on by default — keep them on. Leave the per-signal exporter
+  vars at their default `otlp` (`OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`,
+  `OTEL_LOGS_EXPORTER`); never set any of them to `none`. For logs, enable the
+  agent's logging/appender bridge (e.g. the Java agent's Logback/Log4j appender,
+  Python's `OTEL_PYTHON_LOG_CORRELATION`/logging auto-instrumentation) so existing
+  application logs are exported as OTLP log records.
+- With a **manual SDK setup** (Go, or any language without an agent), wire up all
+  three providers explicitly: a `TracerProvider` + OTLP trace exporter, a
+  `MeterProvider` + OTLP metric exporter (with a periodic reader), and a
+  `LoggerProvider` + OTLP log exporter, plus a logging bridge that routes the app's
+  existing logger (e.g. Go `slog`, Python `logging`, Logback) into the
+  `LoggerProvider`. Install the metric and log auto-instrumentation/contrib packages
+  for the HTTP server and database client too, not only the tracing ones.
+
+Verify after first traffic that **spans, metric datapoints, and log records** all
+appear — not just spans.
+
 **Upgrade all OpenTelemetry dependencies to their latest versions.** Whether you
 are adding OTel for the first time or building on existing instrumentation, pin
 the SDK, exporters, and every auto-instrumentation/contrib package (and language
@@ -46,8 +78,8 @@ ignore — stale dependencies are a common cause of missing or legacy-named
 telemetry. After upgrading, rebuild and confirm the app still compiles and runs.
 
 **Always set `service.name`.** Honeycomb uses `service.name` to name the dataset,
-so traces are only grouped correctly when it is set — never leave it to default
-(`unknown_service`). Prefer setting it via the `OTEL_SERVICE_NAME` environment
+so a service's telemetry is only grouped correctly when it is set — never leave it to
+default (`unknown_service`). Prefer setting it via the `OTEL_SERVICE_NAME` environment
 variable in the application's startup scripts (the launch command, entrypoint,
 Dockerfile, systemd unit, Procfile, etc.) so it is applied consistently every
 time the app starts. Derive the name deterministically rather than inventing one:
@@ -146,8 +178,8 @@ inside an imported namespace collides with it and will be rejected at verificati
 **Account for attributes your code doesn't set — in `weaver/libraries.yaml`.** The
 registry must be a *complete* description of the telemetry the app emits, and
 verification treats **any** undeclared attribute as a FAIL — including ones your code
-never sets, emitted by an instrumentation library or the runtime (e.g. `asgi.event.type`
-from ASGI instrumentation, framework-specific attributes). Standard semconv attributes
+never sets, emitted by an instrumentation library or the runtime (for example, attributes
+the HTTP/ASGI/servlet layer or the language runtime adds to spans). Standard semconv attributes
 (`http.*`, `db.*`, `process.*`, `host.*`, …) are already covered by the `imports` block,
 so they won't be flagged. For the rest — library/framework attributes that aren't in
 semconv — declare them in a **separate** `weaver/libraries.yaml` group file, kept apart
@@ -164,14 +196,42 @@ groups:
     type: attribute_group
     brief: Attributes emitted by instrumentation libraries / runtime, not set by app code
     attributes:
-      - id: asgi.event.type
+      # One entry per attribute the live-check flags as missing. Use the EXACT name from
+      # the report — don't guess attribute names ahead of time; you can't know which
+      # library/runtime attributes a given stack emits until you see them in the telemetry.
+      - id: <library>.<attribute>
         type: string
-        brief: ASGI event type emitted by the ASGI instrumentation
+        brief: <what this library/runtime attribute represents>
         stability: development
-        examples: ["http.response.start", "http.response.body"]
+        examples: ["<observed value>"]
 ```
 
-You typically populate this reactively — see **Fixing verifier findings** below.
+You populate this **reactively**, never speculatively — declare an attribute here only after the
+live-check reports it missing (see **Fixing verifier findings** below).
+
+**Declare the metrics you emit, not just attributes.** The registry describes *all* the
+telemetry the app emits, and you are emitting metrics now (step 1) — so the live-check flags
+any emitted metric that isn't in the registry as a `missing_metric` violation, just like an
+undeclared attribute. Declare each metric the live-check reports as missing as its own
+`type: metric` group. Custom business metrics (the counters/histograms from step 4) go under
+your `app.*` namespace:
+
+```yaml
+groups:
+  - id: metric.app.orders.placed
+    type: metric
+    metric_name: app.orders.placed
+    brief: Count of orders placed
+    instrument: counter
+    unit: "{order}"
+    stability: development
+```
+
+For a **standard** semconv metric emitted by auto-instrumentation
+(`http.server.request.duration`, `jvm.memory.used`, …) that the live-check flags, declare it the
+same way, using its exact semconv `metric_name`, `instrument`, and `unit`. As with the
+library attributes above, populate these **reactively** — declare a metric only once the
+live-check reports it missing, not speculatively. Re-run `weaver registry check` after editing.
 
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business
@@ -187,6 +247,13 @@ spans only for meaningful units of work not already covered by
 auto-instrumentation, and record exceptions and outcomes so failures are
 queryable.
 
+The same domain context belongs in the other two signals where it adds value:
+record domain **metrics** for business-meaningful counts and durations the
+auto-instrumentation doesn't already cover (e.g. orders placed, items per cart,
+queue depth) via instruments on a `Meter`, and ensure the app's **logs** flow
+through the OTel logging bridge so log records are correlated to the active trace.
+Reuse the registry-defined names across all three signals.
+
 ## Finish: communicate the env-var contract
 
 When you finish, **communicate this contract explicitly** — don't assume it will be inferred. These
@@ -199,6 +266,7 @@ must be real environment variables, set before the process starts (see the note 
 | `OTEL_SERVICE_NAME` | names the Honeycomb dataset (step 1) | launch script | yes |
 | `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (step 2) | launch env (values may vary per env) | yes (keys) |
 | `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (step 1) | launch script | yes |
+| `OTEL_TRACES_EXPORTER` / `OTEL_METRICS_EXPORTER` / `OTEL_LOGS_EXPORTER` | keep all three at `otlp` so every signal is exported — never `none` (step 1) | launch script | yes |
 
 - Set what you can in committed launch config (start script, Dockerfile, etc.) and say what you set and where.
 - For anything the operator must set (especially secrets), print a copy-pasteable block:
@@ -210,6 +278,10 @@ must be real environment variables, set before the process starts (see the note 
   export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"
   # To use the latest semantic naming conventions where possible.
   export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
+  # Export all three signals over OTLP (these are the defaults — set explicitly so none is disabled).
+  export OTEL_TRACES_EXPORTER=otlp
+  export OTEL_METRICS_EXPORTER=otlp
+  export OTEL_LOGS_EXPORTER=otlp
   ```
 
 ## Fixing verifier findings
@@ -222,11 +294,14 @@ remedy:
 | Finding | What it means | Fix |
 |---|---|---|
 | `missing_attribute` — a **standard** semconv name (`http.request.method`, `db.query.text`, `server.address`, …) "does not exist in the registry" | dependency declared but not imported | add the `imports: { attribute_groups: [registry.*] }` block to a group file (step 3) |
-| `missing_attribute` — a **library/runtime** attribute your code doesn't set (`asgi.event.type`, framework attrs) | registry missing a passed-through attribute | declare it in `weaver/libraries.yaml` (step 3) |
+| `missing_attribute` — a **library/runtime** attribute your code doesn't set (something from the HTTP/ASGI/servlet or process layer) | registry missing a passed-through attribute | declare it (by its exact reported name) in `weaver/libraries.yaml` (step 3) |
 | `missing_attribute` — one of your **own** `app.*` attributes | you emit it but didn't declare it | add it to your `weaver/app.yaml` group |
+| `missing_metric` — an emitted metric "does not exist in the registry" | metrics are emitted but not declared in the registry | declare the flagged metric (by its exact name) as a `type: metric` group — custom metrics under `app.*`, standard semconv metrics by their published name (step 3) |
 | `violation` — a custom attribute under a standard namespace (`db.rows_affected` under `db.*`) | collides with imported semconv | rename to `app.*`, or reuse the standard attribute (`db.response.returned_rows`) |
 | Legacy attribute names present (`http.method`, `db.statement`, `net.peer.ip`) — from the span review, not weaver | semconv opt-in didn't take effect, or instrumentation is stale | set `OTEL_SEMCONV_STABILITY_OPT_IN=http,database` and upgrade instrumentation to latest (step 1) |
 | Orphan / disconnected spans | broken context propagation | ensure context flows across the boundary (async hop, manual parenting) |
+| No metric datapoints received | metrics signal not exported | enable metric auto-instrumentation / a `MeterProvider` + OTLP metric exporter; ensure `OTEL_METRICS_EXPORTER` isn't `none` (step 1) |
+| No log records received | logs signal not bridged/exported | wire the logging bridge into a `LoggerProvider` + OTLP log exporter; ensure `OTEL_LOGS_EXPORTER` isn't `none` (step 1) |
 | `improvement` / `not_stable` advice | stability level on your own attributes | **not a failure — no action** |
 | `total_entities: 0` (weaver saw nothing) | telemetry never reached weaver | not a registry problem — fix traffic/exporter, then re-verify |
 

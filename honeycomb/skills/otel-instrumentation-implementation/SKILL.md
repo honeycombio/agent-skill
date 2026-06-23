@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.2.2"
+  version: "1.2.3"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -231,7 +231,25 @@ For a **standard** semconv metric emitted by auto-instrumentation
 (`http.server.request.duration`, `jvm.memory.used`, …) that the live-check flags, declare it the
 same way, using its exact semconv `metric_name`, `instrument`, and `unit`. As with the
 library attributes above, populate these **reactively** — declare a metric only once the
-live-check reports it missing, not speculatively. Re-run `weaver registry check` after editing.
+live-check reports it missing, not speculatively.
+
+**Validate that the registry RESOLVES — not just that it parses.** Run `weaver registry check`
+to confirm the files are well-formed, but be aware it does **not** catch a missing or misplaced
+`imports` block — the single most common and most damaging registry defect. Without that block the
+dependency alone merges nothing, so the live-check flags *every* standard attribute your telemetry
+emits (hundreds to tens of thousands of `missing_attribute` violations). Catch it deterministically,
+with no telemetry needed, by confirming an upstream semconv attribute actually resolves **into** your
+registry:
+
+```bash
+# point -r at your registry dir (the one holding manifest.yaml)
+weaver registry resolve -r weaver --format json \
+  | grep -q 'http.request.method' && echo 'imports OK' \
+  || echo 'IMPORTS MISSING — the imports block is absent or not taking effect'
+```
+
+If this prints `IMPORTS MISSING`, fix the `imports` block before continuing — passing
+`weaver registry check` is **not** evidence the import worked.
 
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business

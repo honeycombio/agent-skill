@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # Role
@@ -40,7 +40,20 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
 2. **Delegate verification — always, every time** — spawn the **`otel-verifier`** sub-agent (a
    fresh, independent context) to apply the `otel-verification` skill: add file/console exporters,
    start the app, run **real tests**, inspect the emitted telemetry (spans, metrics, and logs), and
-   return a **PASS/FAIL verdict with evidence**. **Relay the concrete run/exercise details to it** — the verifier starts with no
+   return a **PASS/FAIL verdict with evidence**.
+
+   **You decide whether a weaver live-check is required — do not leave it to the verifier.** Before
+   spawning it, check the checkout for a weaver registry the instrumenter created — a directory
+   containing `manifest.yaml` (e.g. `find <repo> -name manifest.yaml -not -path '*/node_modules/*'
+   -not -path '*/.git/*'`). If one exists, the verifier's task **must** state unambiguously that
+   **its job is to run a `weaver registry live-check` against the live telemetry** — pass it the
+   registry's path, and require that a **PASS is only valid with a clean live-check (zero
+   `violation`-level advice)**, quoted in the verdict. Left to infer it, a verifier reliably skips the
+   live-check — it's more setup than a console capture, and a passing static `weaver registry check`
+   feels like enough — and then returns PASS on a broken registry. If there is **no** registry, tell
+   the verifier so explicitly, so it doesn't hunt for one.
+
+   **Relay the concrete run/exercise details to it** — the verifier starts with no
    context, so pass along, verbatim, whatever the prompt you were given specified about *how to run
    and exercise this app*: the exact command to start it, the ports it binds, and the
    traffic/test/load command or script to drive it (e.g. a provided traffic script, `make test`, a
@@ -67,6 +80,9 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
 
 4. **Finish** — Before you finish, confirm you actually spawned `otel-verifier` and it returned
    PASS. If you skipped it, or only did a static/inline check, you are not done — spawn it now.
+   If a weaver registry exists in the checkout, that PASS **must** quote a clean `weaver registry
+   live-check` result — a PASS that doesn't cite one is incomplete (the verifier skipped the
+   live-check); re-run verification with the live-check requirement spelled out.
    On PASS, summarize what was instrumented and **communicate the required environment-variable
    contract** to the user (which vars to set, where, which are secrets — see the implementation
    skill). Your final report **must quote the `otel-verifier`'s PASS verdict and its evidence

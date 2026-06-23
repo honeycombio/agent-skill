@@ -20,39 +20,15 @@ against the `otel-verification` contract, so make sure the emitted telemetry act
 (stable semantic-convention names present, legacy names absent, `service.name`/`service.version`
 on the resource, business attributes present, connected traces, exceptions recorded).
 
-## Required environment variables
+**Handed specific findings to fix?** (e.g. weaver violations from a prior verification cycle) Don't
+re-run the whole flow — make a targeted fix against the existing instrumentation and stop. Skip to
+**Fixing verifier findings** (the last section).
 
-Several settings must be **real environment variables set in the runtime environment
-before the process (or language agent) starts** — not assigned from inside application
-code. Instrumentation libraries read these once at initialization, often before your
-own code runs, so setting them in-process (`os.environ`, `os.Setenv`, `System.setProperty`)
-is unreliable. Set them in the launch command, entrypoint, start script, Dockerfile,
-systemd unit, Procfile, or your platform's env/secrets config.
-
-| Variable | Purpose | Where to set | Commit to source? |
-|---|---|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb, or a local/internal collector) | launch env / container env | yes |
-| `OTEL_EXPORTER_OTLP_HEADERS` | _Optional_ — auth for the endpoint (e.g. `x-honeycomb-team=…` when exporting straight to Honeycomb). Omit when exporting to an unauthenticated internal collector. | **secrets store / CI env** | **no — it's a secret** |
-| `OTEL_SERVICE_NAME` | names the Honeycomb dataset (see step 1) | launch script | yes |
-| `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (see step 2) | launch env (values may vary per env) | yes (keys) |
-| `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (see step 1) | launch script | yes |
-
-When you finish instrumenting, **communicate this contract explicitly** — do not assume it will
-be inferred:
-
-- Set what you can in committed launch config (start script, Dockerfile, etc.) and say
-  what you set and where.
-- For anything that must be set by the operator (especially secrets), print a copy-pasteable
-  block, e.g.:
-
-  ```
-  # Add to your launch environment before running:
-  export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
-  # optional: auth for the endpoint; omit for an internal collector. Keep in secrets, not git.
-  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"   
-  # To use the latest semantic naming conventions where possible.
-  export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
-  ```
+**Set OpenTelemetry config as real environment variables** — in the launch environment, **before the
+process (or language agent) starts** (launch command, entrypoint, start script, Dockerfile, systemd
+unit, Procfile). Instrumentation libraries read them once at initialization, often before your own code
+runs, so assigning them in-process (`os.environ`, `os.Setenv`, `System.setProperty`) is unreliable. The
+full set to set — and hand off to the operator — is in **Finish: communicate the env-var contract**.
 
 ## 1. Enable auto-instrumentation
 
@@ -119,14 +95,10 @@ dependencies:
     registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.39.0.zip[model]
 ```
 
-**Critical — declaring the dependency is not enough; you must `import` from it.** A
-`dependencies:` entry alone does **not** merge the upstream attributes into your
-registry. weaver treats a dependency's attributes as part of *your* registry only when
-your registry actually references them. Without that, every standard attribute your
-auto-instrumentation emits (`http.request.method`, `db.query.text`, `server.address`,
-…) is reported as *"does not exist in the registry"* even though you depend on the
-registry that defines it. Don't enumerate them by hand — add an `imports` block to a
-group file that pulls in the upstream attribute groups wholesale:
+**Declaring the dependency isn't enough — you must `import` from it.** A `dependencies:` entry
+doesn't merge the upstream attributes; without an `imports` block, every standard attribute your
+auto-instrumentation emits (`http.request.method`, `db.query.text`, `server.address`, …) is reported
+as *"does not exist in the registry"*. Pull in the upstream groups wholesale (don't enumerate by hand):
 
 ```yaml
 # in a group file alongside `groups:` — makes the registry self-describing, so the
@@ -171,6 +143,36 @@ attribute under a standard semconv namespace you import (`db.*`, `http.*`, `serv
 (`db.response.returned_rows`) or namespace it as `app.*`. Defining your own attribute
 inside an imported namespace collides with it and will be rejected at verification.
 
+**Account for attributes your code doesn't set — in `weaver/libraries.yaml`.** The
+registry must be a *complete* description of the telemetry the app emits, and
+verification treats **any** undeclared attribute as a FAIL — including ones your code
+never sets, emitted by an instrumentation library or the runtime (e.g. `asgi.event.type`
+from ASGI instrumentation, framework-specific attributes). Standard semconv attributes
+(`http.*`, `db.*`, `process.*`, `host.*`, …) are already covered by the `imports` block,
+so they won't be flagged. For the rest — library/framework attributes that aren't in
+semconv — declare them in a **separate** `weaver/libraries.yaml` group file, kept apart
+from your own `app.*` attributes so it's clear which attributes the app authors versus
+which it merely passes through:
+
+```yaml
+# weaver/libraries.yaml — attributes emitted by instrumentation libraries / the runtime
+# (NOT set by app code) but present in the telemetry. Cataloguing them keeps the registry
+# complete so weaver's missing_attribute checks pass. Do NOT list semconv attributes here
+# (the imports block already covers those); only library/framework-specific ones.
+groups:
+  - id: registry.libraries
+    type: attribute_group
+    brief: Attributes emitted by instrumentation libraries / runtime, not set by app code
+    attributes:
+      - id: asgi.event.type
+        type: string
+        brief: ASGI event type emitted by the ASGI instrumentation
+        stability: development
+        examples: ["http.response.start", "http.response.body"]
+```
+
+You typically populate this reactively — see **Fixing verifier findings** below.
+
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business
 instrumentation in step 4 stays consistent and reviewable.
@@ -184,3 +186,48 @@ the active span, using the registry-defined names from step 3. Create custom
 spans only for meaningful units of work not already covered by
 auto-instrumentation, and record exceptions and outcomes so failures are
 queryable.
+
+## Finish: communicate the env-var contract
+
+When you finish, **communicate this contract explicitly** — don't assume it will be inferred. These
+must be real environment variables, set before the process starts (see the note at the top):
+
+| Variable | Purpose | Where to set | Commit to source? |
+|---|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP export target (Honeycomb, or a local/internal collector) | launch env / container env | yes |
+| `OTEL_EXPORTER_OTLP_HEADERS` | _Optional_ — auth for the endpoint (e.g. `x-honeycomb-team=…` when exporting straight to Honeycomb). Omit when exporting to an unauthenticated internal collector. | **secrets store / CI env** | **no — it's a secret** |
+| `OTEL_SERVICE_NAME` | names the Honeycomb dataset (step 1) | launch script | yes |
+| `OTEL_RESOURCE_ATTRIBUTES` | `service.version`, `deployment.environment.name`, … (step 2) | launch env (values may vary per env) | yes (keys) |
+| `OTEL_SEMCONV_STABILITY_OPT_IN` | `http,database` — emit current semconv (step 1) | launch script | yes |
+
+- Set what you can in committed launch config (start script, Dockerfile, etc.) and say what you set and where.
+- For anything the operator must set (especially secrets), print a copy-pasteable block:
+
+  ```
+  # Add to your launch environment before running:
+  export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
+  # optional: auth for the endpoint; omit for an internal collector. Keep in secrets, not git.
+  export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_KEY"
+  # To use the latest semantic naming conventions where possible.
+  export OTEL_SEMCONV_STABILITY_OPT_IN=http,database
+  ```
+
+## Fixing verifier findings
+
+If verification handed you findings, fix **exactly those** against the existing instrumentation, then
+re-verify — don't re-run the whole flow. The findings in your task are all the context you have (you're
+a fresh instrumenter; you can't see the verifier's session), so act on them directly. Map each to its
+remedy:
+
+| Finding | What it means | Fix |
+|---|---|---|
+| `missing_attribute` — a **standard** semconv name (`http.request.method`, `db.query.text`, `server.address`, …) "does not exist in the registry" | dependency declared but not imported | add the `imports: { attribute_groups: [registry.*] }` block to a group file (step 3) |
+| `missing_attribute` — a **library/runtime** attribute your code doesn't set (`asgi.event.type`, framework attrs) | registry missing a passed-through attribute | declare it in `weaver/libraries.yaml` (step 3) |
+| `missing_attribute` — one of your **own** `app.*` attributes | you emit it but didn't declare it | add it to your `weaver/app.yaml` group |
+| `violation` — a custom attribute under a standard namespace (`db.rows_affected` under `db.*`) | collides with imported semconv | rename to `app.*`, or reuse the standard attribute (`db.response.returned_rows`) |
+| Legacy attribute names present (`http.method`, `db.statement`, `net.peer.ip`) — from the span review, not weaver | semconv opt-in didn't take effect, or instrumentation is stale | set `OTEL_SEMCONV_STABILITY_OPT_IN=http,database` and upgrade instrumentation to latest (step 1) |
+| Orphan / disconnected spans | broken context propagation | ensure context flows across the boundary (async hop, manual parenting) |
+| `improvement` / `not_stable` advice | stability level on your own attributes | **not a failure — no action** |
+| `total_entities: 0` (weaver saw nothing) | telemetry never reached weaver | not a registry problem — fix traffic/exporter, then re-verify |
+
+After fixing, re-run verification — the instrumentation isn't done until it returns PASS.

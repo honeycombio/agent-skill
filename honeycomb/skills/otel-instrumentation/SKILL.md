@@ -40,15 +40,27 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
 2. **Delegate verification — always, every time** — spawn the **`otel-verifier`** sub-agent (a
    fresh, independent context) to apply the `otel-verification` skill: add a file/console exporter,
    start the app, run **real tests**, inspect the emitted spans, and return a **PASS/FAIL verdict
-   with evidence**. The instrumenter's summary is a **claim, not evidence** — it always says it
-   succeeded. The following are **NOT verification** and must never be accepted in place of
-   spawning `otel-verifier`: the instrumenter's report; a code review or static analysis; an
-   `Explore` agent; "the app builds/starts/imports cleanly"; your own inspection. The only
-   acceptable evidence is a PASS verdict from a freshly-spawned `otel-verifier` that ran the app
-   under real traffic.
+   with evidence**. **Relay the concrete run/exercise details to it** — the verifier starts with no
+   context, so pass along, verbatim, whatever the prompt you were given specified about *how to run
+   and exercise this app*: the exact command to start it, the ports it binds, and the
+   traffic/test/load command or script to drive it (e.g. a provided traffic script, `make test`, a
+   curl sequence, a seeded user). If your prompt gave none, say so explicitly in the task so the
+   verifier knows to discover them itself. Reusing the provided commands is the point — a verifier
+   that re-derives routes and hand-writes its own traffic burns time and tokens reinventing what you
+   were already handed, and may exercise the app differently than the real run. The instrumenter's
+   summary is a **claim, not evidence** — it always says it succeeded. The following are **NOT
+   verification** and must never be accepted in place of spawning `otel-verifier`: the instrumenter's
+   report; a code review or static analysis; an `Explore` agent; "the app builds/starts/imports
+   cleanly"; your own inspection. The only acceptable evidence is a PASS verdict from a
+   freshly-spawned `otel-verifier` that ran the app under real traffic.
 
-3. **Gate and loop** — On **FAIL**, spawn `otel-instrumenter` again with the verifier's exact
-   findings to fix precisely those, then re-run a fresh `otel-verifier`. You may exit this loop
+3. **Gate and loop** — On **FAIL**, spawn `otel-instrumenter` again to fix precisely what failed,
+   then re-run a fresh `otel-verifier`. **Paste the verifier's findings into the new task verbatim** —
+   the re-spawned instrumenter is a fresh context that *cannot see the verifier's report*, so it only
+   knows what you put in its prompt. Copy the concrete evidence as the verifier wrote it: the exact
+   attribute names, the exact span/operation names, which spans were orphaned, which produced no spans.
+   Do **not** paraphrase to a topic ("fix the DB semconv names") — a summary forces the instrumenter to
+   re-discover the specifics the verifier already pinpointed, wasting the cycle. You may exit this loop
    **only** when `otel-verifier` returns PASS, or after **3** full cycles — **never** because the
    instrumenter said it was done.
 

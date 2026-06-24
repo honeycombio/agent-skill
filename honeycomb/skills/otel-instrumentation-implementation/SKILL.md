@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.2.4"
+  version: "1.3.1"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -38,27 +38,22 @@ app's language and frameworks (HTTP server, database client, etc.). Configure
 the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
 
-**Let the OTLP transport follow `OTEL_EXPORTER_OTLP_PROTOCOL` — don't hardcode it.**
-The deployment picks the transport (`grpc` or `http/protobuf`) via that env var. An exporter
-hardcoded to one transport while the endpoint speaks the other silently drops **all** telemetry
-with no error — and it's invisible to console-based checks, which bypass the OTLP path. Prefer
-**env-driven autoconfiguration** so you can't get this wrong (the language agent's default, the
-SDK's autoconfiguring exporter, or Go's `autoexport`). If you instead **construct exporters in
-code** — common in a manual SDK setup — importing a fixed `…proto.grpc…` (or `…proto.http…`)
-exporter class **ignores** `OTEL_EXPORTER_OTLP_PROTOCOL`; you are then responsible for reading it
-and selecting the matching exporter yourself. Honoring it keeps the instrumentation portable to
-whatever endpoint the operator points it at.
+**First, read the config guide for your language** — `references/<language>.md` (`go.md`, `python.md`,
+`java.md`, …) next to this skill. The steps below are general; that file has the stack-specific way to
+apply them reliably (exporter selection, `service.name`, init order, dependencies) and the traps that
+otherwise **silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or a
+`service.name` set only in a launch wrapper the deployer doesn't use).
 
-**Emit all three signals — traces, metrics, and logs**, not just tracing.
-- **With a language agent** (Java, Python, .NET, …): all three are usually on by default — keep them.
-  Leave `OTEL_{TRACES,METRICS,LOGS}_EXPORTER` at `otlp` (never `none`), and enable the agent's logging
-  bridge (Java Logback/Log4j appender, Python logging auto-instrumentation) so app logs export as OTLP.
-- **With a manual SDK setup** (Go, or any agent-less language): wire all three providers explicitly —
-  `TracerProvider`, `MeterProvider` (periodic reader), `LoggerProvider` — plus a bridge from the app's
-  logger (`slog`, `logging`, Logback) into the `LoggerProvider`, and install metric/log contrib
-  packages for the HTTP server and DB client, not only the tracing ones.
+**Select the exporter from `OTEL_EXPORTER_OTLP_PROTOCOL` — never hardcode the transport.** An exporter
+pinned to one transport (`grpc` vs `http/protobuf`) while the endpoint speaks the other silently drops
+**all** telemetry, with no error — and it's invisible to console-based checks, which bypass the OTLP
+path. Your language file shows how to honor the env var without hardcoding it.
 
-Verify after first traffic that spans, metric datapoints, **and** log records all appear.
+**Emit all three signals — traces, metrics, and logs**, not just tracing. Wire the metric reader and
+the log bridge (and the metric/log contrib packages), not only the tracer, and keep the per-signal
+exporters at `otlp` (never `none`). Your language file has the exact wiring — agent defaults vs.
+manual providers. Verify after first traffic that spans, metric datapoints, **and** log records all
+appear.
 
 **Upgrade all OpenTelemetry dependencies to their latest releases** — SDK, exporters, every
 auto-instrumentation/contrib package, and any language agent. Stale versions emit legacy semconv
@@ -68,8 +63,10 @@ the app still runs.
 **Always set `service.name`** — Honeycomb names the dataset from it; never leave it at the
 `unknown_service` default. Set it via `OTEL_SERVICE_NAME` in the launch script (applied every start),
 and derive it deterministically: the artifact/module name from the build config (`pom.xml`,
-`package.json`, `pyproject.toml`, `go.mod`, …), else the repo/directory name. (Per-environment
-resource attributes — step 2 — still come from `OTEL_RESOURCE_ATTRIBUTES`.)
+`package.json`, `pyproject.toml`, `go.mod`, …), else the repo/directory name. For a compiled binary,
+set it as a **code default** on the resource too — not only the launch env, which the operator may not
+use (see your language file). (Per-environment resource attributes — step 2 — still come from
+`OTEL_RESOURCE_ATTRIBUTES`.)
 
 **Opt into stable semantic conventions.** Auto-instrumentation libraries still
 default to legacy attribute names (`http.method`, `http.status_code`,

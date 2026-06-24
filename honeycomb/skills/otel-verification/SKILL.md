@@ -12,7 +12,7 @@ description: >
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.2.5"
+  version: "1.3.0"
 ---
 
 # OpenTelemetry Verification
@@ -107,56 +107,41 @@ builds on, so standard attributes resolve on their own; the flag would mask a re
 No `weaver/` registry in the checkout? Only then skip this step — the telemetry capture below is all
 you need. If a registry *is* present, this step is required for a PASS verdict.
 
-### 3. Set up telemetry capture
+### 3. Point the app's telemetry at weaver — via env vars only, never by editing app code
 
-You need the spans as **structured records** carrying attributes **and parent/trace IDs** (the
-trace-structure check depends on parents). Add a structured exporter to the app and capture its output
-to a file; configure it now, before you start the app, and **remove it again once verification passes**.
-
-Prefer an exporter that writes to a **dedicated file** — only spans, nothing to filter:
-
-- **Python:** `BatchSpanProcessor(ConsoleSpanExporter(out=open("spans.json","w")))`
-  (`opentelemetry.sdk.trace.export`)
-- **Go:** `stdouttrace.New(stdouttrace.WithWriter(f))`
-  (`go.opentelemetry.io/otel/exporters/stdout/stdouttrace`)
-
-The Java agent and the Node console exporter log through stdout/stderr, mixed with app logs — each span
-record is a **single JSON line**, so extract those:
-
-- **Java agent:** use `logging-otlp` (**not** `console`/`logging`, which omit parent span IDs). It
-  writes structured OTLP-JSON and ships with the agent. Set `OTEL_TRACES_EXPORTER=otlp,logging-otlp`,
-  capture output with `your-start-cmd > app.log 2>&1`, then
-  `grep -o '{"resourceSpans".*}' app.log > spans.jsonl`.
-- **Node:** `ConsoleSpanExporter` from `@opentelemetry/sdk-trace-base`; extract the same way.
-
-The clean span file (`spans.json` / `spans.jsonl`, one record per line) is what you inspect in step 6.
-
-**Capture metrics and logs too.** Verification covers all three signals, so also turn on a console/file
-exporter for the other two and confirm they produce output. With most SDKs and language agents the
-simplest path is `OTEL_METRICS_EXPORTER=console` and `OTEL_LOGS_EXPORTER=console`. For a manual SDK
-setup, add a `ConsoleMetricExporter` and a `ConsoleLogRecordExporter`. Capture each to its own file or
-grep its JSON lines out of the app log, the same way as spans.
-
-**Shorten the metric export interval for the run.** Metrics export on a 60-second periodic cycle by
-default — longer than a verification run, so you'd capture zero metric datapoints even though the
-instrumentation is correct. Set `OTEL_METRIC_EXPORT_INTERVAL=10000` (10s) in the launch environment so
-metrics actually flush while traffic is flowing. (Traces and logs use a few-second batch cadence and
-don't need this.) This is a verification-runtime concern only; don't bake a short interval into the
-app's committed config.
-
-**Feed weaver all three signals — not just traces (if you started it in step 2).** weaver's
-`missing_metric` and attribute checks only fire on signals it actually receives, so routing only
-traces would make the metric (and log) conformance checks silently pass on telemetry weaver never
-saw. Keep `otlp` in **every** signal's exporter list and point the shared OTLP endpoint at weaver's
-gRPC port, so one traffic run feeds the capture files **and** weaver across all three signals:
+Configure capture entirely through the OpenTelemetry **environment variables** at launch. **Do not add
+or change exporters in the application's source.** Editing the app to add a capture exporter risks
+leaving that scaffolding — or a hardcoded path — in the shipped instrumentation, which breaks the app;
+verifying telemetry must never alter the deliverable. Set these in the launch environment:
 
 ```
-OTEL_TRACES_EXPORTER=otlp,<trace file/console exporter>
+# Every signal → weaver (the live-check from step 2) AND a console copy you read in step 6.
+OTEL_TRACES_EXPORTER=otlp,console
 OTEL_METRICS_EXPORTER=otlp,console
 OTEL_LOGS_EXPORTER=otlp,console
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$GRPC   # weaver's gRPC port from step 2
 OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:$GRPC   # weaver's gRPC port from step 2
+OTEL_METRIC_EXPORT_INTERVAL=10000                    # flush metrics within the run (default is 60s)
 ```
+
+Then launch (step 4) capturing stdout to a file: `your-start-cmd > telemetry.log 2>&1`. weaver gets
+the telemetry over OTLP for the registry check; the `console` copy in `telemetry.log` is what you read
+in step 6.
+
+- **Feed weaver every signal** — keep `otlp` in all three lists. weaver's `missing_metric` and
+  attribute checks only fire on signals it actually receives; routing only traces would silently pass
+  the metric and log checks on telemetry weaver never saw.
+- **Per language, for the readable `console` copy:**
+  - **Java agent:** use `logging-otlp`, not `console`/`logging` (`OTEL_TRACES_EXPORTER=otlp,logging-otlp`)
+    — the latter omit parent span IDs; `logging-otlp` writes one structured OTLP-JSON line per record.
+  - **Python:** `console` prints **multi-line** pretty JSON (the SDK has no `logging-otlp` equivalent) —
+    parse whole JSON objects out of `telemetry.log`, don't grep single lines.
+  - **Node / others:** `console` is fine.
+- **No `weaver/` registry?** (step 2 was skipped) Drop `otlp` and `OTEL_EXPORTER_OTLP_ENDPOINT` — keep
+  only `console` on each signal; the `telemetry.log` capture is all you need.
+- **If the app ignores these env vars** — e.g. a manual SDK that hardcodes its exporters — that is
+  itself an instrumentation defect: **flag it** (good instrumentation must be configurable from the
+  standard `OTEL_*` env per the spec). Do **not** hand-edit exporters into the app to work around it.
 
 ### 4. Start the app — once
 
@@ -186,7 +171,7 @@ verification as **blocked** — not a pass.
 
 ### 6. Check the telemetry contract
 
-Read the captured files and confirm every item:
+Read the captured telemetry (`telemetry.log` from step 3) and confirm every item:
 
 - [ ] **Spans exist** for each operation you exercised (HTTP routes, DB queries, custom work).
 - [ ] **Current semantic conventions present, legacy absent.** Stable names appear

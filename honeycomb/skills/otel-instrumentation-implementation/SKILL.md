@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.3.1"
+  version: "1.3.2"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -38,11 +38,12 @@ app's language and frameworks (HTTP server, database client, etc.). Configure
 the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
 
-**First, read the config guide for your language** — `references/<language>.md` (`go.md`, `python.md`,
-`java.md`, …) next to this skill. The steps below are general; that file has the stack-specific way to
-apply them reliably (exporter selection, `service.name`, init order, dependencies) and the traps that
-otherwise **silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or a
-`service.name` set only in a launch wrapper the deployer doesn't use).
+**First, read the config guide for your language** — read the file at
+`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation-implementation/references/<language>.md`
+(`go.md`, `python.md`, `java.md`, …). The steps below are general; that file has the stack-specific
+way to apply them reliably (exporter selection, `service.name`, init order, dependencies) and the
+traps that otherwise **silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or
+a `service.name` set only in a launch wrapper the deployer doesn't use).
 
 **Select the exporter from `OTEL_EXPORTER_OTLP_PROTOCOL` — never hardcode the transport.** An exporter
 pinned to one transport (`grpc` vs `http/protobuf`) while the endpoint speaks the other silently drops

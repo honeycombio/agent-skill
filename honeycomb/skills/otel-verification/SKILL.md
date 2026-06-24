@@ -12,7 +12,7 @@ description: >
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.2.4"
+  version: "1.2.5"
 ---
 
 # OpenTelemetry Verification
@@ -163,6 +163,12 @@ OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 Launch it with the start command and ports from step 1, so auto-instrumentation initializes exactly as
 in production. Confirm the required env vars (`OTEL_SEMCONV_STABILITY_OPT_IN`, `OTEL_SERVICE_NAME`, and
 the exporter vars from steps 2–3) are set **before** the process starts.
+
+**One boot covers every signal.** Steps 2–3 already wired all three exporters (and weaver) into this
+single launch, so one run captures spans, metrics, and logs and feeds the live-check together. Don't
+boot the app once per signal or re-launch to "try" exporters one at a time — each extra cycle re-pays
+startup, traffic, and the metric-flush wait for no added coverage. If one signal's capture comes back
+empty, fix the wiring and do **one** more full run, not a series of single-signal probes.
 
 ### 5. Generate real traffic — mandatory
 

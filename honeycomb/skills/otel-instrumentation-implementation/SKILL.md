@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.3.4"
+  version: "1.3.5"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -56,25 +56,28 @@ findings, not this list, are your task. Any item handed as `— missing` is your
 
 ## 1. Enable auto-instrumentation
 
-Install the OpenTelemetry SDK plus the auto-instrumentation packages for the
-app's language and frameworks (HTTP server, database client, etc.). Configure
-the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
-and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
-
-**First, check whether your language/runtime has a dedicated config guide.** Some do; they sit in the
-`references/` directory alongside this SKILL.md (resolve them against wherever this skill was loaded
-from rather than searching the filesystem). The guides that exist today:
+**STOP — before you install anything or write a single line of instrumentation, read the config guide
+for your language. This is a required first action, not an optional check.** The stack-specific guides
+live in the `references/` directory next to this SKILL.md (resolve the path against wherever this skill
+was loaded from; do not search the filesystem). A guide exists for:
 
 - **Go** → `references/go.md`
 - **Java / JVM** → `references/java.md`
 - **Python** → `references/python.md`
 
-**If your language/runtime is in that list, read its guide and let it take precedence over the
-generic steps in this skill wherever the two differ** — it has the stack-specific way to apply them
-reliably (exporter selection, `service.name`, init order, dependencies) and the traps that otherwise
-**silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or a `service.name` set
-only in a launch wrapper the deployer doesn't use). If your language/runtime is **not** listed, follow
-the generic steps below.
+If your language/runtime is in that list, **open the file and follow it** — it **overrides both the
+generic steps below and your own prior knowledge** wherever they differ. Do not instrument this stack
+from memory when a guide for it exists: your training-time instincts are frequently stale or subtly
+wrong for a given stack (a transport pinned to one protocol, a `service.name` set only in a launch
+wrapper, the wrong init order), and those mistakes **silently drop or mis-route telemetry** in ways a
+console check won't catch — the guide exists precisely to stop them. If a guide for your language is
+listed and you haven't opened it, you are not yet following this skill. If your language/runtime is
+**not** listed, follow the generic steps below.
+
+Then install the OpenTelemetry SDK plus the auto-instrumentation packages for the app's language and
+frameworks (HTTP server, database client, etc.). Configure the OTLP exporter to send to Honeycomb by
+setting `OTEL_EXPORTER_OTLP_ENDPOINT` and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest
+key.
 
 **Select the exporter from `OTEL_EXPORTER_OTLP_PROTOCOL` — never hardcode the transport.** An exporter
 pinned to one transport (`grpc` vs `http/protobuf`) while the endpoint speaks the other silently drops

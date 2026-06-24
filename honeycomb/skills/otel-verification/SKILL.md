@@ -12,7 +12,7 @@ description: >
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.2.3"
+  version: "1.2.4"
 ---
 
 # OpenTelemetry Verification
@@ -31,6 +31,25 @@ attribute names, or orphaned traces. **If you didn't see the telemetry, you have
 This skill is **offline and backend-free**: it captures telemetry locally with the SDK's or agent's
 own exporters, so it needs no OTLP backend (no Honeycomb) and no collector. (To verify against
 telemetry that already reached Honeycomb, use the `verify-recent-trace` skill instead.)
+
+## Inputs you may be handed (by slug)
+
+When invoked as a hand-off from the `otel-instrumentation` conductor, your task carries named items —
+match them by these exact slugs and **use them as given** rather than re-deriving. (Invoked standalone,
+the same facts arrive as prose, or you resolve them in step 1.)
+
+- `repo_path` — the app to verify.
+- `start_cmd`, `env_surface`, `ports`, `readiness`, `stop_cmd` — how to start it, where env vars must
+  be set, the ports it binds, how to know it's up, how to stop it. Use exactly these.
+- `traffic_cmd` — how to exercise it end-to-end. Use exactly this; don't reinvent traffic.
+- `service_name` — the `service.name` the telemetry must carry.
+- `app_weaver_registry` — the registry to run the live-check against. `none` means none was provided;
+  there may still be one the instrumenter created (see step 2).
+- `import_registries` — external registries the app's registry imports; context for which standard
+  attributes should resolve cleanly.
+
+Any item handed to you as `— missing` is yours to discover (step 1) or ask about. Do not treat a
+`— missing` run/exercise command as license to guess — discover or ask.
 
 ## Procedure
 

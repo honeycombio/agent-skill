@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.3.2"
+  version: "1.3.4"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -31,6 +31,29 @@ unit, Procfile). Instrumentation libraries read them once at initialization, oft
 runs, so assigning them in-process (`os.environ`, `os.Setenv`, `System.setProperty`) is unreliable. The
 full set to set — and hand off to the operator — is in **Finish: communicate the env-var contract**.
 
+## Inputs you may be handed (by slug)
+
+When invoked as a hand-off from the `otel-instrumentation` conductor, your task carries named items —
+match them by these exact slugs and **use them as given** rather than re-deriving. (Invoked standalone,
+the same facts arrive as prose or you discover them from the repo.)
+
+- `repo_path` — the app to instrument.
+- `language` / `frameworks` — pick the language guide (next section) and the auto-instrumentation packages.
+- `build_cmd` — how to rebuild after your changes.
+- `code_location` — where the request-handling code actually lives if it isn't the obvious source tree
+  (e.g. framework jars / vendored deps). Instrument there or via the language agent; **don't hunt the
+  filesystem for it.**
+- `service_name` — set `service.name` to exactly this (step "Always set `service.name`").
+- `attr_naming` — the namespace/prefix and casing convention for any new attribute you add; follow it.
+  `none` means no house convention — default to an `app.*` namespace.
+- `app_weaver_registry` — reuse this existing registry instead of creating one. `none` → create one as
+  described below.
+- `import_registries` — external registries your registry's `imports` block must pull in (alongside the
+  upstream semconv it already imports). `none` → just the standard imports.
+
+If you were instead handed **verifier findings to fix**, see **Fixing verifier findings** — those
+findings, not this list, are your task. Any item handed as `— missing` is yours to discover or ask about.
+
 ## 1. Enable auto-instrumentation
 
 Install the OpenTelemetry SDK plus the auto-instrumentation packages for the
@@ -38,21 +61,29 @@ app's language and frameworks (HTTP server, database client, etc.). Configure
 the OTLP exporter to send to Honeycomb by setting `OTEL_EXPORTER_OTLP_ENDPOINT`
 and an `OTEL_EXPORTER_OTLP_HEADERS` value containing your ingest key.
 
-**First, read the config guide for your language** — read the file at
-`${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation-implementation/references/<language>.md`
-(`go.md`, `python.md`, `java.md`, …). The steps below are general; that file has the stack-specific
-way to apply them reliably (exporter selection, `service.name`, init order, dependencies) and the
-traps that otherwise **silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or
-a `service.name` set only in a launch wrapper the deployer doesn't use).
+**First, check whether your language/runtime has a dedicated config guide.** Some do; they sit in the
+`references/` directory alongside this SKILL.md (resolve them against wherever this skill was loaded
+from rather than searching the filesystem). The guides that exist today:
+
+- **Go** → `references/go.md`
+- **Java / JVM** → `references/java.md`
+- **Python** → `references/python.md`
+
+**If your language/runtime is in that list, read its guide and let it take precedence over the
+generic steps in this skill wherever the two differ** — it has the stack-specific way to apply them
+reliably (exporter selection, `service.name`, init order, dependencies) and the traps that otherwise
+**silently drop telemetry or mis-route it** (e.g. a hardcoded gRPC exporter, or a `service.name` set
+only in a launch wrapper the deployer doesn't use). If your language/runtime is **not** listed, follow
+the generic steps below.
 
 **Select the exporter from `OTEL_EXPORTER_OTLP_PROTOCOL` — never hardcode the transport.** An exporter
 pinned to one transport (`grpc` vs `http/protobuf`) while the endpoint speaks the other silently drops
 **all** telemetry, with no error — and it's invisible to console-based checks, which bypass the OTLP
-path. Your language file shows how to honor the env var without hardcoding it.
+path. If your language has a guide, it shows how to honor the env var without hardcoding it.
 
 **Emit all three signals — traces, metrics, and logs**, not just tracing. Wire the metric reader and
 the log bridge (and the metric/log contrib packages), not only the tracer, and keep the per-signal
-exporters at `otlp` (never `none`). Your language file has the exact wiring — agent defaults vs.
+exporters at `otlp` (never `none`). Any language guide has the exact wiring — agent defaults vs.
 manual providers. Verify after first traffic that spans, metric datapoints, **and** log records all
 appear.
 
@@ -66,7 +97,7 @@ the app still runs.
 and derive it deterministically: the artifact/module name from the build config (`pom.xml`,
 `package.json`, `pyproject.toml`, `go.mod`, …), else the repo/directory name. For a compiled binary,
 set it as a **code default** on the resource too — not only the launch env, which the operator may not
-use (see your language file). (Per-environment resource attributes — step 2 — still come from
+use (see your language guide, if one exists). (Per-environment resource attributes — step 2 — still come from
 `OTEL_RESOURCE_ATTRIBUTES`.)
 
 **Opt into stable semantic conventions.** Auto-instrumentation libraries still
@@ -103,8 +134,10 @@ the manifest, declare the upstream registry as a dependency:
 ```yaml
 dependencies:
   - name: otel
-    # pin the latest semantic-conventions release
-    registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/v1.39.0.zip[model]
+    # Pin the current semantic-conventions release. Look up the latest tag at
+    # https://github.com/open-telemetry/semantic-conventions/releases and substitute it below
+    # (don't copy a version from this example — it ages).
+    registry_path: https://github.com/open-telemetry/semantic-conventions/archive/refs/tags/<latest-release-tag>.zip[model]
 ```
 
 **Declaring the dependency isn't enough — you must `import` from it.** A `dependencies:` entry
@@ -181,6 +214,12 @@ groups:
 
 You populate this **reactively**, never speculatively — declare an attribute here only after the
 live-check reports it missing (see **Fixing verifier findings** below).
+
+**The live-check enumerates every flagged attribute by its exact name — that report is your source of
+truth.** Never inspect, unzip, or decompile a library or language agent to discover which attributes it
+emits; you cannot predict them, and you don't need to — run the live-check, then declare exactly what
+it lists as missing. This applies equally to the agent's own SDK/self-monitoring telemetry: if the
+live-check flags it, catalogue it from the report like any other passed-through attribute.
 
 **Declare the metrics you emit, not just attributes.** The registry describes *all* the
 telemetry the app emits, and you are emitting metrics now (step 1) — so the live-check flags

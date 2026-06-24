@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "2.3.0"
+  version: "2.5.0"
 ---
 
 # Role
@@ -31,16 +31,79 @@ exist in a "done" state until an `otel-verifier` sub-agent has returned **PASS**
 by definition, unfinished. The single most common failure here is declaring success the moment the
 instrumenter reports back — **resist it. Unverified instrumentation is presumed broken.**
 
+# Intake — resolve the input contract (do this first)
+
+Before delegating anything, resolve the **input contract** below from the prompt you were given.
+Each item has a stable **slug** — use these exact slugs when you print the contract and when you pass
+items into sub-agent prompts, so an item means the same thing everywhere it travels.
+
+**Environment / location** (resolve from the prompt and your own plugin root — never ask the user):
+
+| slug | what it is | required |
+|---|---|---|
+| `repo_path` | absolute path to the app's repo / working dir | ✅ |
+| `impl_skill_path` | `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation-implementation/SKILL.md` | ✅ |
+| `verify_skill_path` | `${CLAUDE_PLUGIN_ROOT}/skills/otel-verification/SKILL.md` | ✅ |
+
+**App facts** (resolve from the prompt; for gaps, see the resolution flow below):
+
+| slug | what it is | required |
+|---|---|---|
+| `service_name` | `service.name` / dataset the telemetry must use (must be pinned) | ✅ |
+| `language` | language / runtime (+ version) | ✅ |
+| `frameworks` | HTTP server, DB client, ORM, queue, … | ⬜ |
+| `build_cmd` | command to build the app | ✅ if a build is needed |
+| `code_location` | where the request-handling code actually lives, if not the obvious source tree (e.g. framework jars / vendored deps) | ⬜ |
+| `start_cmd` | exact command / entrypoint to start the app | ✅ |
+| `env_surface` | where launch env vars must be set (start script, Dockerfile, systemd unit, Procfile) | ✅ |
+| `ports` | every port the app binds, including implicit ones (embedded DB, admin connector) | ✅ |
+| `readiness` | how to know it's up (log line or health endpoint) | ✅ |
+| `stop_cmd` | how to stop it cleanly | ⬜ |
+| `traffic_cmd` | command/script to drive representative traffic / tests / load | ✅ |
+| `app_weaver_registry` | path to an existing app-specific weaver registry to reuse, if one is provided | ✅ |
+| `import_registries` | one or more external weaver registries the registry should import | ✅ |
+| `attr_naming` | naming conventions for new attributes (namespace/prefix, casing) | ✅ |
+
+**Resolution flow:**
+
+1. **Print the resolved contract.** Render every slug with its resolved value, or `— missing` if the
+   prompt didn't supply it. This is the first thing you output.
+2. **If anything is still missing, offer to auto-detect** what's discoverable from the repo — a
+   read-only pass (e.g. an `Explore` sub-agent) can usually find `language`, `frameworks`,
+   `build_cmd`, `start_cmd`, `env_surface`, `ports`, `readiness`, `code_location`, and an existing
+   `app_weaver_registry`. Offer it; don't silently start scanning.
+3. **Fall back to asking the user** for anything auto-detect is **refused** for, **can't find**, or
+   that isn't discoverable at all because it's a choice or external — typically `service_name`,
+   `traffic_cmd`, `import_registries`, and `attr_naming`. Never **invent** a `start_cmd` or
+   `traffic_cmd` — a guessed one exercises the app differently than the real thing. For `app_weaver_registry`, `import_registries`, and `attr_naming`, an explicit
+   **`none`** (no existing registry / nothing to import / no special convention) is a valid resolved
+   answer — record it as `none`, not `— missing`; required here means *consciously decided*, not
+   *non-empty*.
+4. **Re-print the final contract** once filled, then proceed. If a required item is still unresolved
+   after asking, say so explicitly and carry it as `— missing` into the sub-agent prompt (so the
+   sub-agent knows to discover it itself) rather than fabricating a value.
+
+You pass this resolved, slugged contract into both sub-agents — the steps below say which items go
+where.
+
 # Workflow
 
 1. **Delegate implementation** — spawn the **`otel-instrumenter`** sub-agent (Task tool). Give it
-   the repo path and the same prompt that you were given, and add explicit instructions to use the
-   `otel-instrumentation-implementation` skill. It implements only — it does not self-verify.
+   the resolved contract (by slug — at minimum `repo_path`, `language`, `frameworks`, `service_name`,
+   `build_cmd`, `code_location`, `app_weaver_registry`, `import_registries`, `attr_naming`) and the
+   same prompt that you were given, and tell it to read and follow the
+   implementation skill at the concrete path
+   `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation-implementation/SKILL.md`. Pass that exact
+   path in the task — the sub-agent starts with no knowledge of where the skill lives, so handing it
+   the resolved path lets it open the skill directly instead of searching the filesystem for it. It
+   implements only — it does not self-verify.
 
 2. **Delegate verification — always, every time** — spawn the **`otel-verifier`** sub-agent (a
-   fresh, independent context) to apply the `otel-verification` skill: add file/console exporters,
-   start the app, run **real tests**, inspect the emitted telemetry (spans, metrics, and logs), and
-   return a **PASS/FAIL verdict with evidence**.
+   fresh, independent context) and tell it to read and follow the verification skill at the concrete
+   path `${CLAUDE_PLUGIN_ROOT}/skills/otel-verification/SKILL.md` (pass that exact path, for the same
+   reason as the implementer — so it opens the skill directly rather than searching for it): add
+   file/console exporters, start the app, run **real tests**, inspect the emitted telemetry (spans,
+   metrics, and logs), and return a **PASS/FAIL verdict with evidence**.
 
    **You decide whether a weaver live-check is required — do not leave it to the verifier.** Before
    spawning it, check the checkout for a weaver registry the instrumenter created — a directory
@@ -53,12 +116,11 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
    feels like enough — and then returns PASS on a broken registry. If there is **no** registry, tell
    the verifier so explicitly, so it doesn't hunt for one.
 
-   **Relay the concrete run/exercise details to it** — the verifier starts with no
-   context, so pass along, verbatim, whatever the prompt you were given specified about *how to run
-   and exercise this app*: the exact command to start it, the ports it binds, and the
-   traffic/test/load command or script to drive it (e.g. a provided traffic script, `make test`, a
-   curl sequence, a seeded user). If your prompt gave none, say so explicitly in the task so the
-   verifier knows to discover them itself. Reusing the provided commands is the point — a verifier
+   **Relay the concrete run/exercise details to it** — the verifier starts with no context, so pass
+   along, verbatim, the resolved contract items for *how to run and exercise this app*: `start_cmd`,
+   `env_surface`, `ports`, `readiness`, `stop_cmd`, and `traffic_cmd` (plus `service_name` and the
+   weaver items — `app_weaver_registry`, `import_registries`). Any of these still `— missing` after
+   intake: say so explicitly in the task so the verifier knows to discover it itself. Reusing the provided commands is the point — a verifier
    that re-derives routes and hand-writes its own traffic burns time and tokens reinventing what you
    were already handed, and may exercise the app differently than the real run. The instrumenter's
    summary is a **claim, not evidence** — it always says it succeeded. The following are **NOT
@@ -68,7 +130,9 @@ instrumenter reports back — **resist it. Unverified instrumentation is presume
    freshly-spawned `otel-verifier` that ran the app under real traffic.
 
 3. **Gate and loop** — On **FAIL**, spawn `otel-instrumenter` again to fix precisely what failed,
-   then re-run a fresh `otel-verifier`. **Paste the verifier's findings into the new task verbatim** —
+   then re-run a fresh `otel-verifier`. Each re-spawn is a fresh context, so hand it the same
+   concrete skill path again (the implementation or verification `SKILL.md` path above).
+   **Paste the verifier's findings into the new task verbatim** —
    the re-spawned instrumenter is a fresh context that *cannot see the verifier's report*, so it only
    knows what you put in its prompt. Copy the concrete evidence as the verifier wrote it: the exact
    attribute names, the exact span/operation names, which spans were orphaned, which produced no spans,

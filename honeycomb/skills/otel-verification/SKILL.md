@@ -12,7 +12,7 @@ description: >
   emitted OpenTelemetry telemetry is correct. Also used as the verification hand-off from
   the otel-instrumentation skill.
 metadata:
-  version: "1.3.0"
+  version: "1.3.1"
 ---
 
 # OpenTelemetry Verification
@@ -65,8 +65,8 @@ guessing wrong ports or env makes it hollow. Resolve both before going further:
 
 ### 2. If a `weaver/` registry exists, the live-check is MANDATORY
 
-**If the implementer created a `weaver/` directory, you must run a registry live-check — it is not
-optional, and you cannot return PASS without one.** The live-check is the *only* thing that catches an
+**If the implementer created a `weaver/` directory, a registry live-check is mandatory — you cannot
+return PASS without one.** The live-check is the *only* thing that catches an
 entire class of defects the manual review by eye cannot: an undeclared attribute or metric
 (`missing_attribute` / `missing_metric`), a custom attribute colliding with a standard namespace, a
 type mismatch. Inspecting the captured telemetry yourself is **not** a substitute — a registry can be
@@ -105,7 +105,7 @@ weaver registry live-check --registry weaver \
 builds on, so standard attributes resolve on their own; the flag would mask a registry that doesn't.
 
 No `weaver/` registry in the checkout? Only then skip this step — the telemetry capture below is all
-you need. If a registry *is* present, this step is required for a PASS verdict.
+you need.
 
 ### 3. Point the app's telemetry at weaver — via env vars only, never by editing app code
 
@@ -193,8 +193,7 @@ Read the captured telemetry (`telemetry.log` from step 3) and confirm every item
   records (with `severity`/`body`, and `trace_id`/`span_id` when emitted inside a span). An empty logs
   capture means the logging bridge isn't wired to the `LoggerProvider`.
 - [ ] **Registry conformance** — if a `weaver/` registry exists, the live-check **must** have run
-  and shown zero `violation`-level advice (step 7). A registry present but unchecked is an automatic
-  FAIL, not a pass — you have no evidence either way.
+  and shown zero `violation`-level advice (step 7).
 
 ### 7. Read the weaver verdict (whenever a registry was present)
 

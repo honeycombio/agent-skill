@@ -9,7 +9,7 @@ description: >
   reference, used by the instrumenter role. For running a full engagement (coordinating
   implementation with independent verification), use the `otel-instrumentation` skill instead.
 metadata:
-  version: "1.3.5"
+  version: "1.4.0"
 ---
 
 # OpenTelemetry Instrumentation — Implementation
@@ -56,23 +56,19 @@ findings, not this list, are your task. Any item handed as `— missing` is your
 
 ## 1. Enable auto-instrumentation
 
-**STOP — before you install anything or write a single line of instrumentation, read the config guide
-for your language. This is a required first action, not an optional check.** The stack-specific guides
-live in the `references/` directory next to this SKILL.md (resolve the path against wherever this skill
-was loaded from; do not search the filesystem). A guide exists for:
+**Before you install anything, read the config guide for your language** — it overrides the generic
+steps below and your own prior knowledge wherever they differ. The stack-specific guides live in the
+`references/` directory next to this SKILL.md (resolve the path against wherever this skill was loaded
+from; do not search the filesystem):
 
 - **Go** → `references/go.md`
 - **Java / JVM** → `references/java.md`
 - **Python** → `references/python.md`
 
-If your language/runtime is in that list, **open the file and follow it** — it **overrides both the
-generic steps below and your own prior knowledge** wherever they differ. Do not instrument this stack
-from memory when a guide for it exists: your training-time instincts are frequently stale or subtly
+Instrument from the guide, not from memory: training-time instincts are frequently stale or subtly
 wrong for a given stack (a transport pinned to one protocol, a `service.name` set only in a launch
 wrapper, the wrong init order), and those mistakes **silently drop or mis-route telemetry** in ways a
-console check won't catch — the guide exists precisely to stop them. If a guide for your language is
-listed and you haven't opened it, you are not yet following this skill. If your language/runtime is
-**not** listed, follow the generic steps below.
+console check won't catch. If your language/runtime is **not** listed, follow the generic steps below.
 
 Then install the OpenTelemetry SDK plus the auto-instrumentation packages for the app's language and
 frameworks (HTTP server, database client, etc.). Configure the OTLP exporter to send to Honeycomb by
@@ -87,8 +83,7 @@ path. If your language has a guide, it shows how to honor the env var without ha
 **Emit all three signals — traces, metrics, and logs**, not just tracing. Wire the metric reader and
 the log bridge (and the metric/log contrib packages), not only the tracer, and keep the per-signal
 exporters at `otlp` (never `none`). Any language guide has the exact wiring — agent defaults vs.
-manual providers. Verify after first traffic that spans, metric datapoints, **and** log records all
-appear.
+manual providers.
 
 **Upgrade all OpenTelemetry dependencies to their latest releases** — SDK, exporters, every
 auto-instrumentation/contrib package, and any language agent. Stale versions emit legacy semconv
@@ -105,11 +100,17 @@ use (see your language guide, if one exists). (Per-environment resource attribut
 
 **Opt into stable semantic conventions.** Auto-instrumentation libraries still
 default to legacy attribute names (`http.method`, `http.status_code`,
-`db.statement`, `db.system`, `net.peer.ip`, …). Set
-`OTEL_SEMCONV_STABILITY_OPT_IN=http,database` (and pin recent instrumentation
-versions) so spans use the current names (`http.request.method`,
+`db.statement`, `db.system`, `net.peer.ip`, …). Set `OTEL_SEMCONV_STABILITY_OPT_IN`
+to the signal families your app emits — `http,database` covers the common case; add
+others (e.g. `messaging`) if the app uses them — and pin recent instrumentation
+versions so spans use the current names (`http.request.method`,
 `http.response.status_code`, `db.query.text`, `db.system.name`,
-`network.peer.address`, …). Verify after first traffic that the new names appear.
+`network.peer.address`, …).
+
+**Smoke-check before handing off.** A separate verification pass scores the result, but don't lean on
+it to catch your own wiring: start the app, send a little traffic, and confirm spans, metric
+datapoints, and log records all arrive carrying the current semconv names. A stale instrumentation
+version or a mis-pinned transport produces nothing — silently — and that is cheapest to catch here.
 
 ## 2. Add service.version
 
@@ -191,62 +192,13 @@ attribute under a standard semconv namespace you import (`db.*`, `http.*`, `serv
 (`db.response.returned_rows`) or namespace it as `app.*`. Defining your own attribute
 inside an imported namespace collides with it and will be rejected at verification.
 
-**Account for attributes your code doesn't set — in `weaver/libraries.yaml`.** Verification treats
-**any** undeclared attribute as a FAIL, including ones a library or the runtime emits (e.g. what the
-HTTP/ASGI/servlet layer adds to spans). Standard semconv attrs are already covered by the `imports`
-block; declare the rest — library/framework attributes not in semconv — in a **separate**
-`weaver/libraries.yaml` group, kept apart from your `app.*` attributes so authorship is clear:
-
-```yaml
-# weaver/libraries.yaml — attributes a library/runtime emits (NOT set by app code). Only
-# library-specific ones; semconv attributes are already covered by the imports block.
-groups:
-  - id: registry.libraries
-    type: attribute_group
-    brief: Attributes emitted by instrumentation libraries / runtime, not set by app code
-    attributes:
-      # One entry per attribute the live-check flags as missing. Use the EXACT name from
-      # the report — don't guess attribute names ahead of time; you can't know which
-      # library/runtime attributes a given stack emits until you see them in the telemetry.
-      - id: <library>.<attribute>
-        type: string
-        brief: <what this library/runtime attribute represents>
-        stability: development
-        examples: ["<observed value>"]
-```
-
-You populate this **reactively**, never speculatively — declare an attribute here only after the
-live-check reports it missing (see **Fixing verifier findings** below).
-
-**The live-check enumerates every flagged attribute by its exact name — that report is your source of
-truth.** Never inspect, unzip, or decompile a library or language agent to discover which attributes it
-emits; you cannot predict them, and you don't need to — run the live-check, then declare exactly what
-it lists as missing. This applies equally to the agent's own SDK/self-monitoring telemetry: if the
-live-check flags it, catalogue it from the report like any other passed-through attribute.
-
-**Declare the metrics you emit, not just attributes.** The registry describes *all* the
-telemetry the app emits, and you are emitting metrics now (step 1) — so the live-check flags
-any emitted metric that isn't in the registry as a `missing_metric` violation, just like an
-undeclared attribute. Declare each metric the live-check reports as missing as its own
-`type: metric` group. Custom business metrics (the counters/histograms from step 4) go under
-your `app.*` namespace:
-
-```yaml
-groups:
-  - id: metric.app.orders.placed
-    type: metric
-    metric_name: app.orders.placed
-    brief: Count of orders placed
-    instrument: counter
-    unit: "{order}"
-    stability: development
-```
-
-For a **standard** semconv metric emitted by auto-instrumentation
-(`http.server.request.duration`, `jvm.memory.used`, …) that the live-check flags, declare it the
-same way, using its exact semconv `metric_name`, `instrument`, and `unit`. As with the
-library attributes above, populate these **reactively** — declare a metric only once the
-live-check reports it missing, not speculatively.
+**Your registry must also cover telemetry you don't author** — attributes and metrics emitted by the
+instrumentation libraries, the language agent, or the runtime, plus the standard semconv metrics
+auto-instrumentation produces. Verification treats *any* undeclared attribute or metric as a FAIL. You
+can't predict these from memory, so don't try: declare them **reactively** from the live-check report,
+which names each one exactly. The mechanics — `weaver/libraries.yaml` for passed-through attributes,
+`type: metric` groups for emitted metrics — live in **Declaring passed-through telemetry** under
+*Fixing verifier findings*, because that's the point where the report exists to drive them.
 
 Reference the registry-defined attribute names from your instrumentation (ideally via
 generated constants) instead of hardcoding attribute-name strings, so the business
@@ -323,9 +275,9 @@ remedy:
 | Finding | What it means | Fix |
 |---|---|---|
 | `missing_attribute` — a **standard** semconv name (`http.request.method`, `db.query.text`, `server.address`, …) "does not exist in the registry" | dependency declared but not imported | add the `imports: { attribute_groups: [registry.*] }` block to a group file (step 3) |
-| `missing_attribute` — a **library/runtime** attribute your code doesn't set (something from the HTTP/ASGI/servlet or process layer) | registry missing a passed-through attribute | declare it (by its exact reported name) in `weaver/libraries.yaml` (step 3) |
+| `missing_attribute` — a **library/runtime** attribute your code doesn't set (something from the HTTP/ASGI/servlet or process layer) | registry missing a passed-through attribute | declare it (by its exact reported name) in `weaver/libraries.yaml` (see *Declaring passed-through telemetry* below) |
 | `missing_attribute` — one of your **own** `app.*` attributes | you emit it but didn't declare it | add it to your `weaver/app.yaml` group |
-| `missing_metric` — an emitted metric "does not exist in the registry" | metrics are emitted but not declared in the registry | declare the flagged metric (by its exact name) as a `type: metric` group — custom metrics under `app.*`, standard semconv metrics by their published name (step 3) |
+| `missing_metric` — an emitted metric "does not exist in the registry" | metrics are emitted but not declared in the registry | declare the flagged metric (by its exact name) as a `type: metric` group — custom metrics under `app.*`, standard semconv metrics by their published name (see *Declaring passed-through telemetry* below) |
 | `violation` — a custom attribute under a standard namespace (`db.rows_affected` under `db.*`) | collides with imported semconv | rename to `app.*`, or reuse the standard attribute (`db.response.returned_rows`) |
 | Legacy attribute names present (`http.method`, `db.statement`, `net.peer.ip`) — from the span review, not weaver | semconv opt-in didn't take effect, or instrumentation is stale | set `OTEL_SEMCONV_STABILITY_OPT_IN=http,database` and upgrade instrumentation to latest (step 1) |
 | Orphan / disconnected spans | broken context propagation | ensure context flows across the boundary (async hop, manual parenting) |
@@ -333,5 +285,51 @@ remedy:
 | No log records received | logs signal not bridged/exported | wire the logging bridge into a `LoggerProvider` + OTLP log exporter; ensure `OTEL_LOGS_EXPORTER` isn't `none` (step 1) |
 | `improvement` / `not_stable` advice | stability level on your own attributes | **not a failure — no action** |
 | `total_entities: 0` (weaver saw nothing) | telemetry never reached weaver | not a registry problem — fix traffic/exporter, then re-verify |
+
+### Declaring passed-through telemetry
+
+Two finding types above — passed-through **attributes** and emitted **metrics** — are declared the
+same way: reactively, using the exact name the live-check reports. **That report is your source of
+truth.** Never inspect, unzip, or decompile a library or language agent to discover what it emits; you
+can't predict it and you don't need to — run the live-check, then declare exactly what it lists. This
+applies equally to the agent's own SDK/self-monitoring telemetry: if the live-check flags it, catalogue
+it like any other passed-through attribute.
+
+**Passed-through attributes → `weaver/libraries.yaml`.** Keep these in a group file separate from your
+`app.*` attributes so authorship is clear (standard semconv attributes are already covered by the
+`imports` block — only library/runtime ones belong here):
+
+```yaml
+# weaver/libraries.yaml — attributes a library/runtime emits (NOT set by app code).
+groups:
+  - id: registry.libraries
+    type: attribute_group
+    brief: Attributes emitted by instrumentation libraries / runtime, not set by app code
+    attributes:
+      # One entry per attribute the live-check flags as missing, using the EXACT reported name.
+      - id: <library>.<attribute>
+        type: string
+        brief: <what this library/runtime attribute represents>
+        stability: development
+        examples: ["<observed value>"]
+```
+
+**Emitted metrics → `type: metric` groups.** The registry describes *all* the telemetry the app emits,
+and you emit metrics now (step 1, plus the business metrics from step 4) — so the live-check flags any
+emitted metric not in the registry as a `missing_metric` violation. Declare each flagged metric as its
+own group: custom business metrics under your `app.*` namespace, and standard semconv metrics
+(`http.server.request.duration`, `jvm.memory.used`, …) by their exact published `metric_name`,
+`instrument`, and `unit`.
+
+```yaml
+groups:
+  - id: metric.app.orders.placed
+    type: metric
+    metric_name: app.orders.placed
+    brief: Count of orders placed
+    instrument: counter
+    unit: "{order}"
+    stability: development
+```
 
 After fixing, re-run verification — the instrumentation isn't done until it returns PASS.

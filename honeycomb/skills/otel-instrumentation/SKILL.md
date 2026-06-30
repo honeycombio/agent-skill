@@ -57,7 +57,7 @@ something is wrong. Capture a short list — it is the input for step 4.
 
 ### 2. Enable auto-instrumentation
 
-Get the app emitting **traces, metrics, and logs** out of the box. Where the language offers a
+Get the app emitting traces and logs out of the box. Where the language offers a
 zero-code auto-instrumentation agent (e.g. Java, Python, Node, .NET), prefer it; otherwise wire up
 the OpenTelemetry SDK with the standard framework instrumentations. Keep custom code to a minimum —
 take the least-custom path the language and framework support. Set the service identity —

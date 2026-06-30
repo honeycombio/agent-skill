@@ -72,7 +72,9 @@ canonical install reproduces the instrumented dependency set. If the manifest in
 new packages conflict with an existing dependency, resolve the conflict — adjust a pin, scope the
 conflicting package to an optional group you exclude, or pick compatible versions.
 
-Lastly, make sure that all Open Telemetry libraries are updated to the latest version and if necessary `OTEL_SEMCONV_STABILITY_OPT_IN` is set with the correct groups to send through the latest semantic conventions.
+Lastly, make sure that all Open Telemetry libraries are updated to the latest version and that they support the latest semantic conventions. Some libraries require a particular value to be set in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable. If that is the case, make sure that value is added to the environment variable and the environment variable is added to any startup scripts and communicated at the report at the end.
+
+If the latest version of a particular library does not support the latest semantic conventions, it is ok to ignore the warnings from the verification step for this particular subsystem, as long as this is explicitely mentioned at the end of the run.
 
 ### 3. Send telemetry to Honeycomb
 

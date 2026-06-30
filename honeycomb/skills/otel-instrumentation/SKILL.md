@@ -137,7 +137,7 @@ configuration actually active** — the correct `OTEL_*` environment variables i
 (such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` carrying the `x-honeycomb-team` key, and
 `OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 
-**Then hand over to the `otel-verification` skill to judge the telemetry, ideally in a fresh sub-agent.**
+**Then spawn a Task sub-agent to run verify the output with the `otel-verification` skill **
 
 Fix what it flags, re-run the traffic, and repeat until it is clean. The work isn't done until the telemetry is verified, not merely emitted.
 

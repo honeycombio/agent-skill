@@ -72,7 +72,7 @@ canonical install reproduces the instrumented dependency set. If the manifest in
 new packages conflict with an existing dependency, resolve the conflict — adjust a pin, scope the
 conflicting package to an optional group you exclude, or pick compatible versions.
 
-To make sure that libraries are updated to their latest version and that if needed `OTEL_SEMCONV_STABILITY_OPT_IN` is set with the appropriate values for the libraries involved so that the latest version of the semantic conventions are used.
+Lastly, make sure that all Open Telemetry libraries are updated to the latest version and if necessary `OTEL_SEMCONV_STABILITY_OPT_IN` is set with the correct groups to send through the latest semantic conventions.
 
 ### 3. Send telemetry to Honeycomb
 
@@ -132,23 +132,19 @@ registries:
 
 ### 6. Prove it works
 
-Drive the app under real, representative traffic so it emits telemetry. **Run it with the export
+Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry. **Run it with the export
 configuration actually active** — the correct `OTEL_*` environment variables in place
 (such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` carrying the `x-honeycomb-team` key, and
-`OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge. Finish all instrumentation tasks before starting the application and then **hand off to the `otel-verification` skill to judge it.** Verification reads the emitted telemetry (in Honeycomb and
-against the standards) and reports the gaps — it does not generate traffic of its own. Fix what it
-flags, re-run the traffic, and repeat until it is clean. The work isn't done until the telemetry is
-verified, not merely emitted.
+`OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 
-**Keep the run loop tight** — booting and driving the app is usually the slowest thing you do, so
-don't repeat it needlessly. So finish all instrumentation Start the app **once** and keep it running across the verify→fix→re-verify
-cycle; only restart when you've changed something the running process loaded at startup (app code, or
-the `OTEL_*` export/SDK config). Wait for readiness with a **bounded poll** — loop on a concrete signal
-(a startup log line, a health endpoint, the port accepting connections) with a timeout, and bail early
-if the process has exited — rather than a foreground `tail -f` (which can block long past the match) or
-a fixed `sleep` guess. Likewise, before you read telemetry back, wait for the exporter to actually
-flush — watch for its own confirmation, or use a single bounded wait sized to the batch interval — not
-a blind sleep.
+**Then hand over to the `otel-verification` skill to judge the telemetry, ideally in a fresh sub-agent.**
+
+Fix what it flags, re-run the traffic, and repeat until it is clean. The work isn't done until the telemetry is verified, not merely emitted.
+
+**Keep the verify loop tight** — booting and driving the app is usually the slowest thing you do, so
+don't repeat it needlessly.
+Wait for readiness with a **bounded poll** — loop on a concrete signal
+(a startup log line, a health endpoint, the port accepting connections) with a timeout, and bail early if the process has exited — rather than a foreground `tail -f` (which can block long past the match) or a fixed `sleep` guess. Likewise, before you read telemetry back, wait for the exporter to actually flush — watch for its own confirmation, or use a single bounded wait sized to the batch interval — not a blind sleep.
 
 **Separate runtime failures from instrumentation defects.** Your job is the telemetry, not the app's
 own runtime. If the app fails in a way unrelated to your changes — won't start, datastore in a bad
@@ -159,8 +155,6 @@ instrumentation defect. Capture the evidence and hand back rather than trying to
 
 Lead with the outcome, not a diff: tell the user, in plain language, **what they can now see and
 ask** that they couldn't before — tied to the things they said matter — and point them at the live
-data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what
-landed. Finally, leave them able to **re-verify anytime**: the `otel-verification` skill needs only
-query access to this environment — no rerun of the app — so they can re-check after future changes.
+data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed. 
 
-Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are not already set in startup scripts, they need to be mentioned as well.
+Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are needed nad not set in existing startup scripts, they need to be mentioned as well.

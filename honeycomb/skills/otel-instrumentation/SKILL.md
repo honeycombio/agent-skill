@@ -81,17 +81,27 @@ alongside attribute-group files) — and make sure the the `app_weaver_registry`
 given at intake are included. **If one exists, extend it** rather than starting over. Otherwise create a small
 registry of your own.
 
-The manifest's identity fields — `name`, and either `schema_url` or both `schema_base_url` and
-`semconv_version` — live at the **top level** of the document, with imported registries in a top-level
-list. A minimal valid shape:
+Name the file `manifest.yaml`. Its identity fields — `name`, and either `schema_url` or both
+`schema_base_url` and `semconv_version` — live at the **top level**, with imported registries declared
+in a top-level **`dependencies:`** list (each entry a `name` and a `registry_path`). A minimal valid
+shape:
 
 ```yaml
 name: <service>-registry
-schema_url: https://opentelemetry.io/schemas/<semconv-version>
-registries:
-  - url: https://github.com/open-telemetry/semantic-conventions.git[model]
-    name: semconv
+# Use your OWN schema_url host — NOT opentelemetry.io/schemas/... A schema_url under
+# opentelemetry.io makes your registry share the upstream's identity and weaver fails with a
+# "circular dependency" error.
+schema_url: https://<your-app>/schemas/1.0.0
+dependencies:
+  - name: otel
+    registry_path: https://github.com/open-telemetry/semantic-conventions.git[model]
 ```
+
+The `dependencies:` list is what actually imports the upstream conventions. A `registries:` block (or
+any other spelling) is **silently ignored** — and `weaver registry check` still passes — so the miss
+only surfaces later when live-check flags every standard attribute (`http.*`, `db.*`, `server.*`, …)
+as undefined. After writing the manifest, confirm the import resolved: `weaver registry resolve`
+should include a standard attribute such as `http.route`, not just your `app.*` ones.
 
 If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 4.
 
@@ -125,13 +135,12 @@ standard attributes you reused resolve too.
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
 malformed or inconsistent registry is a defect to correct now. This is a static check of the registry
-*definition* itself; you do not run live telemetry through weaver here — proving the emitted telemetry
-is correct happens next.
+*definition* itself;
 
 ### 5. Prove it works
 
 Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry via the generate traffic cmd. **Run it with the export
-configuration actually active** — the correct `OTEL_*` environment variables in place
+configuration actually active** — the correct `OTEL_*` environment variables in place that you gathered in step 1.
 (such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
 `OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 

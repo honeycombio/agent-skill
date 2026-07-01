@@ -81,10 +81,13 @@ alongside attribute-group files) — and make sure the the `app_weaver_registry`
 given at intake are included. **If one exists, extend it** rather than starting over. Otherwise create a small
 registry of your own.
 
-Name the file `manifest.yaml`. Its identity fields — `name`, and either `schema_url` or both
-`schema_base_url` and `semconv_version` — live at the **top level**, with imported registries declared
-in a top-level **`dependencies:`** list (each entry a `name` and a `registry_path`). A minimal valid
-shape:
+Put the registry in its **own subdirectory** (e.g. `telemetry/registry/`), **never the repo root** —
+weaver treats the whole registry directory as the registry and chokes on any non-registry YAML it
+finds there (a collector config, a linter config, …), which makes the live-check fail to start
+entirely. Name the manifest `manifest.yaml`. Its identity fields — `name`, and either `schema_url` or
+both `schema_base_url` and `semconv_version` — live at the **top level**, with imported registries
+declared in a top-level **`dependencies:`** list (each entry a `name` and a `registry_path`). A
+minimal valid shape:
 
 ```yaml
 name: <service>-registry
@@ -97,11 +100,30 @@ dependencies:
     registry_path: https://github.com/open-telemetry/semantic-conventions.git[model]
 ```
 
-The `dependencies:` list is what actually imports the upstream conventions. A `registries:` block (or
-any other spelling) is **silently ignored** — and `weaver registry check` still passes — so the miss
-only surfaces later when live-check flags every standard attribute (`http.*`, `db.*`, `server.*`, …)
-as undefined. After writing the manifest, confirm the import resolved: `weaver registry resolve`
-should include a standard attribute such as `http.route`, not just your `app.*` ones.
+`dependencies:` makes the upstream conventions *resolvable*, but importing alone does **not** make
+them count in live-check — the check only credits attributes your registry actually **references**, so
+standard attributes are still flagged as undefined. Reference the namespaces you emit with a top-level
+**`imports:`** block (a sibling of `groups:`, in any registry file). `imports:` pulls in **signals** —
+`spans`, `metrics`, `events`, `entities` — by glob, and each imported signal transitively references
+its attributes:
+
+```yaml
+imports:
+  spans:
+    - http.*
+    - db.*
+  metrics:
+    - http.*
+    - db.*
+```
+
+Import the signal namespaces your telemetry actually uses (add `messaging.*`, `rpc.*`, etc. as they
+apply). `imports:` only takes signal types — there is no bare `attributes:` import — so a few
+attributes in signal-less namespaces will still be flagged; pick those up reactively with explicit
+refs in step 4. A `registries:` block (or any other spelling) is **silently ignored** and
+`weaver registry check` still passes, so a wrong import only surfaces at live-check. After writing the
+manifest, confirm with **`weaver registry live-check`** that standard attributes such as `http.route`
+validate rather than being reported as undefined.
 
 If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 4.
 
@@ -130,8 +152,11 @@ from a generic checklist.
 Define all attributes that you have added in step 3, except for ones already defined in an imported registry. Include name, type, a
 one-line brief and example values.
 
-Make sure to import the upstream OpenTelemetry semantic conventions so the
-standard attributes you reused resolve too.
+The `imports:` block from step 3 covers the standard attributes carried by the signals you import. For
+any **standard** attribute the live-check still flags as undefined — the stragglers that live in
+signal-less namespaces (e.g. `url.*`, `client.*`, `user_agent.*`) — add an explicit `ref:` to it in a
+group so it validates too. Let the live-check tell you which ones rather than enumerating them up
+front.
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
 malformed or inconsistent registry is a defect to correct now. This is a static check of the registry

@@ -74,6 +74,13 @@ Lastly, make sure that all Open Telemetry libraries are updated to the latest ve
 
 If the latest version of a particular library does not support the latest semantic conventions, it is ok to ignore the warnings from the verification step for this particular subsystem, as long as this is explicitely mentioned at the end of the run.
 
+**Only make instrumentation changes in the application's own source code — never in its dependencies.**
+Code that comes from an installed package or framework (anything you can't edit in the repo's own
+sources) is covered by auto-instrumentation at runtime; you can't ship edits to it, and reading or
+decompiling it to instrument it is wasted effort. Add custom spans and business attributes only in the
+app's own code and its extension points (handlers, services, middleware/filters/interceptors), and let
+auto-instrumentation handle everything that lives in a dependency.
+
 ### 3. Look up standards
 
 **First look for an existing weaver registry in the repo** — a `registry_manifest.yaml` (or a `manifest.yaml`

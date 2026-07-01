@@ -20,7 +20,7 @@ metadata:
 
 Make the target application observable: run the way it normally runs, it should emit traces,
 metrics, and logs that follow current OpenTelemetry semantic conventions, carry the business
-context needed to debug it in production, and arrive in Honeycomb — **proven under real traffic
+context needed to debug it in production — Make sure it is **proven under real traffic
 before you call it done.**
 
 ## Before you start
@@ -37,7 +37,7 @@ and don't guess at anything only the user knows.
 - **OTLP endpoint** — where telemetry is sent. If not provided, ask whether it is **Honeycomb (US)**, **Honeycomb (EU)**, or **Other** (an organisation's collector / gateway — the user supplies the URL)
 - **Honeycomb ingestion key** — the API key to send with *when exporting directly to Honeycomb* (ask; never hardcode it). The environment it sends to is *derived from the key* — see step 1. When the endpoint is a collector/gateway, use whatever auth that endpoint expects (often none from the app)
 - **query access for verification** — the Honeycomb MCP, or a Honeycomb *query* API key (read access) for the destination environment. Distinct from the ingestion key above; step 6 needs it so verification can read back what landed
-- **what the app does and what the user cares about debugging** — ask; this drives the business context
+- **what the app does and what the user cares about debugging** — this drives the business context
 - **attribute standards** — ask whether the org has a registry or document that *defines existing attributes and their values* (a **weaver registry**, or an established conventions page) to look up and reuse verbatim — alongside the OpenTelemetry semantic conventions
 - **naming conventions** — ask the rules for *creating a new* attribute when no standard one fits (namespace/prefix, casing, structure); default to an `app.*` namespace if there are none
 - **focus** — optionally a specific area to prioritise; otherwise cover the app broadly
@@ -47,13 +47,11 @@ and don't guess at anything only the user knows.
 ### 1. Gather
 
 Read the repo to establish the language, frameworks, entry points, and how it builds and runs.
-Confirm the service name with the user. **When exporting directly to Honeycomb, derive the
+Confirm the service name with the user. If the OTLP endpoint is a Honeycomb API endpoint, derive the
 environment from the ingestion key** rather than asking: call `GET /1/auth` against the chosen
 region with the key in the `x-honeycomb-team` header and read `environment.name`; confirm it with
-the user (a Classic key returns an empty name). When the endpoint is a collector/gateway instead,
-there is no environment to derive — telemetry lands wherever that endpoint forwards it. Then ask
-what matters: the domain entities, decisions, and operations they would want to slice by when
-something is wrong. Capture a short list — it is the input for step 4.
+the user (a Classic key returns an empty name).
+And if the OTLP endpoint is a Honeycomb API endpoint, make sure to also set OTEL_EXPORTER_OTLP_HEADERS to `x-honeycomb-team=` with the ingest key.
 
 ### 2. Enable auto-instrumentation
 
@@ -76,15 +74,27 @@ Lastly, make sure that all Open Telemetry libraries are updated to the latest ve
 
 If the latest version of a particular library does not support the latest semantic conventions, it is ok to ignore the warnings from the verification step for this particular subsystem, as long as this is explicitely mentioned at the end of the run.
 
-### 3. Send telemetry to Honeycomb
+### 3. Look up standards
 
-Configure OTLP export to the chosen endpoint through environment/config — **never hardcode
-credentials.** Going directly to Honeycomb, that is `https://api.honeycomb.io` (US) or
-`https://api.eu1.honeycomb.io` (EU), authenticated with the ingestion key in the `x-honeycomb-team`
-header; going to an organisation's collector/gateway, use that URL and whatever auth it expects.
-Cover all three signals. Then **confirm data is actually arriving**: run the app, drive a little
-traffic, and check the telemetry lands at the destination (query Honeycomb, or the MCP) before going
-further — do not build on an unverified pipeline.
+**First look for an existing weaver registry in the repo** — a `registry_manifest.yaml` (or a `manifest.yaml`
+alongside attribute-group files) — and make sure the the `app_weaver_registry` / `import_registries` you were
+given at intake are included. **If one exists, extend it** rather than starting over. Otherwise create a small
+registry of your own.
+
+The manifest's identity fields — `name`, and either `schema_url` or both `schema_base_url` and
+`semconv_version` — live at the **top level** of the document, with imported registries in a top-level
+list. A minimal valid shape:
+
+```yaml
+name: <service>-registry
+schema_url: https://opentelemetry.io/schemas/<semconv-version>
+registries:
+  - url: https://github.com/open-telemetry/semantic-conventions.git[model]
+    name: semconv
+```
+
+If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 4.
+
 
 ### 4. Add business context
 
@@ -105,14 +115,12 @@ nothing standard fits do you mint a new attribute — and then follow the **nami
 (namespace, casing, structure) from intake, defaulting to the `app.*` namespace. Don't apply names
 from a generic checklist.
 
-### 5. Define your attributes in a weaver registry
+### 4. Define your attributes in a weaver registry
 
-Write the attributes down so the conventions stay consistent and can be checked mechanically. **First
-look for an existing weaver registry in the repo** — a `registry_manifest.yaml` (or a `manifest.yaml`
-alongside attribute-group files) — and honour the `app_weaver_registry` / `import_registries` you were
-given at intake. **If one exists, extend it** rather than starting over. Otherwise create a small
-registry of your own that documents the custom attributes you introduced in step 4 (name, type, a
-one-line brief, example values), importing the upstream OpenTelemetry semantic conventions so the
+Define all attributes that you have added in step 3, except for ones already defined in an imported registry. Include name, type, a
+one-line brief and example values.
+
+Make sure to import the upstream OpenTelemetry semantic conventions so the
 standard attributes you reused resolve too.
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
@@ -120,28 +128,19 @@ malformed or inconsistent registry is a defect to correct now. This is a static 
 *definition* itself; you do not run live telemetry through weaver here — proving the emitted telemetry
 is correct happens next.
 
-The manifest's identity fields — `name`, and either `schema_url` or both `schema_base_url` and
-`semconv_version` — live at the **top level** of the document, with imported registries in a top-level
-list. A minimal valid shape:
+### 5. Prove it works
 
-```yaml
-name: <service>-registry
-schema_url: https://opentelemetry.io/schemas/<semconv-version>
-registries:
-  - url: https://github.com/open-telemetry/semantic-conventions.git[model]
-    name: semconv
-```
-
-### 6. Prove it works
-
-Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry. **Run it with the export
+Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry via the generate traffic cmd. **Run it with the export
 configuration actually active** — the correct `OTEL_*` environment variables in place
-(such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` carrying the `x-honeycomb-team` key, and
+(such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
 `OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 
 **Then spawn a Task sub-agent to run verify the output with the `otel-verification` skill **
+In the prompt, include the information needed to find telemetry. What service.name, environment, weaver registry and naming conventions that you were given.
 
-Fix what it flags, re-run the traffic, and repeat until it is clean. The work isn't done until the telemetry is verified, not merely emitted.
+If the check comes back a FAIL, fix what it flagged, start the application again, generate traffic and call the verification skill one more time in a fresh Task sub-agent with the same prompt.
+
+If the second check also fails, make sure to mention that in the final output to the user with an overview of the failures.
 
 **Keep the verify loop tight** — booting and driving the app is usually the slowest thing you do, so
 don't repeat it needlessly.
@@ -153,10 +152,12 @@ own runtime. If the app fails in a way unrelated to your changes — won't start
 state, a port taken, app-level errors you didn't introduce — that's an environment failure, not an
 instrumentation defect. Capture the evidence and hand back rather than trying to fix the app.
 
-### 7. Hand back
+### 6. Hand back
 
 Lead with the outcome, not a diff: tell the user, in plain language, **what they can now see and
 ask** that they couldn't before — tied to the things they said matter — and point them at the live
-data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed. 
+data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed.
 
-Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are needed nad not set in existing startup scripts, they need to be mentioned as well.
+Include some of the evidence from the last verification step so the user can explore their new telemetry.
+
+Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are needed and not set in existing startup scripts, they need to be mentioned as well.

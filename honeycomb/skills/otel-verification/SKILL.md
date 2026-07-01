@@ -35,8 +35,7 @@ You need:
 - *(optional)* **the org's attribute standards** — a weaver registry or conventions doc to check against; otherwise judge against OpenTelemetry semantic conventions
 - *(optional)* **focus** — a specific thing to check ("is tenant on every request?"); otherwise sweep broadly
 
-When invoked from instrumentation, the environment and access come from that step; invoked directly,
-the user supplies them. If no telemetry is arriving at all, you cannot judge — report that (BLOCKED)
+If no telemetry is arriving at all, you cannot judge — report that (BLOCKED)
 and point back at instrumentation.
 
 ## Steps

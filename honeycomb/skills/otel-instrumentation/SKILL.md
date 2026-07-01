@@ -55,13 +55,24 @@ And if the OTLP endpoint is a Honeycomb API endpoint, make sure to also set OTEL
 
 ### 2. Enable auto-instrumentation
 
-Get the app emitting traces and logs out of the box. Where the language offers a
+Get the app emitting **all three signals — traces, metrics, and logs** — out of the box. Where the
+language offers a
 zero-code auto-instrumentation agent (e.g. Java, Python, Node, .NET), prefer it; otherwise wire up
 the OpenTelemetry SDK with the standard framework instrumentations. Keep custom code to a minimum —
 take the least-custom path the language and framework support. Set the service identity —
 `service.name`, plus `service.version` where readily available. This is one knob, not two: prefer the
 `OTEL_SERVICE_NAME` environment variable (the default path, and the only one for zero-code agents)
-over setting it in code, and apply it consistently with step 6.
+over setting it in code, and apply it consistently with step 7.
+
+**A signal only counts if it is actually exported — wire each pipeline end to end.** A zero-code agent
+normally covers all three; an SDK setup must wire each one explicitly, and it is easy to build a
+pipeline that emits nothing. **Logs** are the usual casualty, because a working log pipeline is a full
+chain: *the logger the app already uses* → an OTel bridge/handler → a `LoggerProvider` → an OTLP log
+exporter. Two half-configurations look done but export zero records: enabling only log/trace
+**correlation** (injecting trace IDs into log lines) with no export pipeline; or standing up a
+`LoggerProvider` + exporter but never **bridging** the app's real logger to it, so it keeps writing to
+stdout. **Metrics** have the same shape — a `MeterProvider` with an OTLP metric exporter, not just
+instruments. Don't assume; step 6 must confirm records of each signal actually arrive.
 
 **Declare the new dependencies in the project's manifest, not just the live environment.** Add the
 OpenTelemetry packages the way the project declares its other dependencies (`uv add` / `pyproject.toml`,
@@ -84,7 +95,7 @@ auto-instrumentation handle everything that lives in a dependency.
 ### 3. Look up standards
 
 **First look for an existing weaver registry in the repo** — a `registry_manifest.yaml` (or a `manifest.yaml`
-alongside attribute-group files) — and make sure the the `app_weaver_registry` / `import_registries` you were
+alongside attribute-group files) — and make sure the `app_weaver_registry` / `import_registries` you were
 given at intake are included. **If one exists, extend it** rather than starting over. Otherwise create a small
 registry of your own.
 
@@ -127,12 +138,12 @@ imports:
 Import the signal namespaces your telemetry actually uses (add `messaging.*`, `rpc.*`, etc. as they
 apply). `imports:` only takes signal types — there is no bare `attributes:` import — so a few
 attributes in signal-less namespaces will still be flagged; pick those up reactively with explicit
-refs in step 4. A `registries:` block (or any other spelling) is **silently ignored** and
+refs in step 5. A `registries:` block (or any other spelling) is **silently ignored** and
 `weaver registry check` still passes, so a wrong import only surfaces at live-check. After writing the
 manifest, confirm with **`weaver registry live-check`** that standard attributes such as `http.route`
 validate rather than being reported as undefined.
 
-If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 4.
+If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 5.
 
 
 ### 4. Add business context
@@ -154,9 +165,9 @@ nothing standard fits do you mint a new attribute — and then follow the **nami
 (namespace, casing, structure) from intake, defaulting to the `app.*` namespace. Don't apply names
 from a generic checklist.
 
-### 4. Define your attributes in a weaver registry
+### 5. Define your attributes in a weaver registry
 
-Define all attributes that you have added in step 3, except for ones already defined in an imported registry. Include name, type, a
+Define all attributes that you have added in step 4, except for ones already defined in an imported registry. Include name, type, a
 one-line brief and example values.
 
 The `imports:` block from step 3 covers the standard attributes carried by the signals you import. For
@@ -169,14 +180,19 @@ Validate the registry **statically** with `weaver registry check` and fix whatev
 malformed or inconsistent registry is a defect to correct now. This is a static check of the registry
 *definition* itself;
 
-### 5. Prove it works
+### 6. Prove it works
 
 Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry via the generate traffic cmd. **Run it with the export
 configuration actually active** — the correct `OTEL_*` environment variables in place that you gathered in step 1.
 (such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
 `OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 
-**Then spawn a Task sub-agent to run verify the output with the `otel-verification` skill **
+**Confirm all three signals actually arrived** — query the destination for traces **and** metrics
+**and** logs under your `service.name`. A signal with zero records means its export pipeline is
+broken (see step 2), not that the app is quiet — treat it as a defect to fix, not a pass. Do this
+before handing off so a half-wired metrics or logs pipeline can't slip through as "done".
+
+**Then spawn a Task sub-agent to verify the output with the `otel-verification` skill.**
 In the prompt, include the information needed to find telemetry. What service.name, environment, weaver registry and naming conventions that you were given.
 
 If the check comes back a FAIL, fix what it flagged, start the application again, generate traffic and call the verification skill one more time in a fresh Task sub-agent with the same prompt.
@@ -193,7 +209,7 @@ own runtime. If the app fails in a way unrelated to your changes — won't start
 state, a port taken, app-level errors you didn't introduce — that's an environment failure, not an
 instrumentation defect. Capture the evidence and hand back rather than trying to fix the app.
 
-### 6. Hand back
+### 7. Hand back
 
 Lead with the outcome, not a diff: tell the user, in plain language, **what they can now see and
 ask** that they couldn't before — tied to the things they said matter — and point them at the live

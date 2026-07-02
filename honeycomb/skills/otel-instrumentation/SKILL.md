@@ -87,7 +87,13 @@ have explicit permission), and upgrade only if they agree.** Some libraries also
 value in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable. When that applies, set that
 variable, add it to any startup scripts, and note it in the final report.
 
-If the latest version of a particular library does not support the latest semantic conventions, it is ok to ignore the warnings from the verification step for this particular subsystem, as long as this is explicitely mentioned at the end of the run.
+A library whose **latest** version still emits deprecated conventions — and that no
+`OTEL_SEMCONV_STABILITY_OPT_IN` value or configuration can move onto the current ones — is a **known
+limitation, not a defect you can fix**: you can't ship changes to a dependency (see below). Don't
+conclude this until you've actually exhausted the upgrade *and* the opt-in — it is not a shortcut
+past a fixable gap. Once you have, note which library it is and which attributes or namespace it
+emits the old way, and carry that forward: verification will flag it in step 6, where you reconcile
+it rather than chase it, and you disclose it in step 7.
 
 **Only make instrumentation changes in the application's own source code — never in its dependencies.**
 Code that comes from an installed package or framework (anything you can't edit in the repo's own
@@ -163,10 +169,19 @@ sub-agent / separate task) so it judges the telemetry independently. Give it the
 to find the telemetry: the `service.name`, environment, weaver registry, and naming conventions you
 were given.
 
-If the check comes back a FAIL, fix what it flagged, start the application again, generate traffic,
-and run the verification skill once more with a fresh context and the same prompt.
+The verification skill judges independently and doesn't know which gaps you already found unfixable,
+so **reconcile its findings against what you learned in step 2 before you act.** A flagged convention
+that you've confirmed comes from an un-upgradable library is *expected*: carry it to step 7, don't
+try to fix it, and — since rebooting and re-driving the app is the slowest thing you do — never
+re-run the app for it. If verification flags a deprecated convention you hadn't already identified,
+check then whether the latest library version or the opt-in can fix it; if neither can, it's a known
+limitation too, and the same applies.
 
-If the second check also fails, make sure to mention that in the final output to the user with an overview of the failures.
+Fix every *other* flagged finding, then start the application again, generate traffic, and run the
+verification skill once more with a fresh context and the same prompt.
+
+If the second check still fails on findings that are **not** known library limitations, mention that
+in the final output to the user with an overview of the failures.
 
 **Keep the verify loop tight** — booting and driving the app is usually the slowest thing you do, so
 don't repeat it needlessly.
@@ -185,5 +200,11 @@ ask** that they couldn't before — tied to the things they said matter — and 
 data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed.
 
 Include some of the evidence from the last verification step so the user can explore their new telemetry.
+
+**Call out any known limitations explicitly.** For each subsystem where an un-upgradable library
+still emits deprecated conventions, name the library, the attributes or namespace affected, and why
+it can't be fixed (latest version and the `OTEL_SEMCONV_STABILITY_OPT_IN` opt-in both fall short).
+Frame it as an accepted gap with a reason, not a failure — and where one exists, point at the
+upstream version or issue that would close it.
 
 Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are needed and not set in existing startup scripts, they need to be mentioned as well.

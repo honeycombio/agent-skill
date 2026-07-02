@@ -36,8 +36,11 @@ Do **not** pass `--include-unreferenced`: it folds the entire upstream semconv i
 (hundreds of attributes), which flattens `registry_coverage` and buries the "defined but never
 emitted" signal under attributes the app never touches. Leaving it off keeps the registry universe
 to what the app actually authored — standard attributes it emits surface under
-`seen_non_registry_attributes`, where you credit the ones that are legitimate conventions (via
-`search_semconv`) and flag only the genuinely-unknown remainder.
+`seen_non_registry_attributes`, where you check each against `search_semconv` /
+`get_semconv_attribute` and credit only the ones that match a **current** convention. Flag the rest
+as findings — both the genuinely-unknown names **and** any that match a convention the spec has since
+deprecated or renamed to a newer spelling. Matching a real convention is not enough on its own; a
+deprecated match is still a finding to report.
 
 ## Read the verdict from `statistics`
 

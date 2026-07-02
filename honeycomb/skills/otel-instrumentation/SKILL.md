@@ -139,14 +139,32 @@ nothing standard fits do you mint a new attribute — and then follow the **nami
 (namespace, casing, structure) from intake, defaulting to the `app.*` namespace. Don't apply names
 from a generic checklist.
 
+**This discipline covers every attribute you set yourself — including the resource attributes you
+configure during setup** (via `OTEL_RESOURCE_ATTRIBUTES` or the SDK's `Resource`), not just the
+business attributes you add in code. Standard conventions get renamed as they stabilise, and setup
+guides often carry the old spelling; a self-set attribute using a deprecated name (for example
+`deployment.environment`, superseded by `deployment.environment.name`) is a defect you own and must
+correct — look up the current spelling rather than copying an older example. This is unlike a
+deprecated attribute emitted by a library you can't edit, which is a known limitation; anything you
+write yourself, you can and must get right.
+
 ### 5. Define your attributes in a weaver registry
 
 Add a definition for every attribute you introduced in step 4 that isn't already covered by an
-import — name, type, a one-line brief, and example values. Walk the attributes your instrumentation
-actually emits and make sure each one is either imported or explicitly ref'd; standard attributes in
-signal-less namespaces (e.g. `url.*`, `client.*`, `user_agent.*`) need an explicit `ref:`, since the
-`imports:` block from step 3 can't pull them in. See
-**[references/weaver-registry.md](references/weaver-registry.md)** for the mechanics.
+import — name, type, a one-line brief, and example values. The registry is a truthful manifest of
+**everything your telemetry emits**, not just the attributes you wrote by hand — the
+auto-instrumentation libraries you enabled add their own, and each one still needs a home in the
+registry. Walk the attributes your instrumentation actually emits and make sure each one is
+accounted for:
+
+- **standard attributes** are imported (or, for signal-less namespaces like `url.*`, `client.*`,
+  `user_agent.*`, explicitly `ref:`'d — the `imports:` block from step 3 can't pull them in);
+- **non-standard attributes a library emits** (e.g. framework/middleware passthrough keys that
+  aren't part of any semantic convention) aren't importable or ref'able, so define them yourself
+  just as you would your own — a name, type, and one-line brief. They are part of your telemetry; a
+  truthful manifest documents them too.
+
+See **[references/weaver-registry.md](references/weaver-registry.md)** for the mechanics.
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
 malformed or inconsistent registry is a defect to correct now. This checks the registry *definition*

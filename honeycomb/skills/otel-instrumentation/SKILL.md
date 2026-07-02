@@ -54,6 +54,12 @@ with the key in the `x-honeycomb-team` header and read `environment.name`; confi
 
 ### 2. Enable auto-instrumentation
 
+**Read the language-specific reference for your app before wiring anything** — it gives the concrete
+packages, provider/exporter wiring, logs bridge, and the traps that matter for that language, and
+**where it differs from the generic guidance in this skill, the language reference wins**:
+**[Java](references/java.md)** · **[Python](references/python.md)** · **[Go](references/go.md)**. If
+there is no reference for the app's language, follow the generic guidance below.
+
 Get the app emitting **all three signals — traces, metrics, and logs** — out of the box. Where the
 language offers a
 zero-code auto-instrumentation agent (e.g. Java, Python, Node, .NET), prefer it; otherwise wire up
@@ -182,10 +188,20 @@ representative traffic so it emits telemetry. **Run it with the export configura
 broken (see step 2), not that the app is quiet — treat it as a defect to fix, not a pass. Do this
 before handing off so a half-wired metrics or logs pipeline can't slip through as "done".
 
-**Then invoke the `otel-verification` skill to verify the output** — run it with a clean context (a
-sub-agent / separate task) so it judges the telemetry independently. Give it the information needed
-to find the telemetry: the `service.name`, environment, weaver registry, and naming conventions you
-were given.
+**Then verify the output with the `otel-verification` skill, in a clean context so it judges the
+telemetry independently.** Spawn a fresh general-purpose sub-agent (a separate task) and have *it*
+invoke the `otel-verification` skill — `otel-verification` is a skill, not a registered agent type,
+so do not pass its name as the sub-agent type; that spawn just fails and the check silently never
+runs. Give the sub-agent the information needed to find the telemetry: the `service.name`,
+environment, weaver registry, and naming conventions you were given.
+
+Verification is **mandatory**: it compares your *actual emitted* telemetry against the registry (via
+a weaver live-check), so it is the only step that catches attributes your auto-instrumentation emits
+but your registry never documented. The static `weaver registry check` from step 5 validates the
+registry's definition only — it never looks at emitted telemetry — so it is **not** a substitute, and
+neither are your own ad-hoc queries. If you truly cannot spawn a separate sub-agent, invoke the
+`otel-verification` skill in your current context rather than skip it — never hand back without a
+completed verification pass.
 
 The verification skill judges independently and doesn't know which gaps you already found unfixable,
 so **reconcile its findings against what you learned in step 2 before you act.** A flagged convention

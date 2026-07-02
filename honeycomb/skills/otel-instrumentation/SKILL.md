@@ -18,10 +18,9 @@ metadata:
 
 # OpenTelemetry Instrumentation
 
-Make the target application observable: run the way it normally runs, it should emit traces,
-metrics, and logs that follow current OpenTelemetry semantic conventions, carry the business
-context needed to debug it in production — Make sure it is **proven under real traffic
-before you call it done.**
+Make the target application observable: running the way it normally runs, it should emit traces,
+metrics, and logs that follow current OpenTelemetry semantic conventions and carry the business
+context needed to debug it in production. **Prove it under real traffic before you call it done.**
 
 ## Before you start
 
@@ -48,10 +47,10 @@ and don't guess at anything only the user knows.
 
 Read the repo to establish the language, frameworks, entry points, and how it builds and runs.
 Confirm the service name with the user. If the OTLP endpoint is a Honeycomb API endpoint, derive the
-environment from the ingestion key** rather than asking: call `GET /1/auth` against the chosen
-region with the key in the `x-honeycomb-team` header and read `environment.name`; confirm it with
-the user (a Classic key returns an empty name).
-And if the OTLP endpoint is a Honeycomb API endpoint, make sure to also set OTEL_EXPORTER_OTLP_HEADERS to `x-honeycomb-team=` with the ingest key.
+environment from the ingestion key rather than asking: call `GET /1/auth` against the chosen region
+with the key in the `x-honeycomb-team` header and read `environment.name`; confirm it with the user
+(a Classic key returns an empty name). For that endpoint, also set `OTEL_EXPORTER_OTLP_HEADERS` to
+`x-honeycomb-team=<ingest key>`.
 
 ### 2. Enable auto-instrumentation
 
@@ -81,7 +80,12 @@ canonical install reproduces the instrumented dependency set. If the manifest in
 new packages conflict with an existing dependency, resolve the conflict — adjust a pin, scope the
 conflicting package to an optional group you exclude, or pick compatible versions.
 
-Lastly, make sure that all Open Telemetry libraries are updated to the latest version and that they support the latest semantic conventions. Some libraries require a particular value to be set in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable. If that is the case, make sure that value is added to the environment variable and the environment variable is added to any startup scripts and communicated at the report at the end.
+Lastly, check whether the OpenTelemetry libraries in use support the current semantic conventions.
+Where a library's installed version is behind — it emits deprecated attributes and a newer version
+would emit the current ones — **ask the user whether they want to upgrade it (unless you already
+have explicit permission), and upgrade only if they agree.** Some libraries also require a specific
+value in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable. When that applies, set that
+variable, add it to any startup scripts, and note it in the final report.
 
 If the latest version of a particular library does not support the latest semantic conventions, it is ok to ignore the warnings from the verification step for this particular subsystem, as long as this is explicitely mentioned at the end of the run.
 
@@ -94,56 +98,20 @@ auto-instrumentation handle everything that lives in a dependency.
 
 ### 3. Look up standards
 
-**First look for an existing weaver registry in the repo** — a `registry_manifest.yaml` (or a `manifest.yaml`
-alongside attribute-group files) — and make sure the `app_weaver_registry` / `import_registries` you were
-given at intake are included. **If one exists, extend it** rather than starting over. Otherwise create a small
-registry of your own.
+Your telemetry gets judged against a **weaver registry** — a truthful manifest of every attribute
+you emit, standard and custom. **First look for an existing registry in the repo** — a
+`registry_manifest.yaml` (or a `manifest.yaml` alongside attribute-group files) — and make sure the
+`app_weaver_registry` / `import_registries` you were given at intake are included. **If one exists,
+extend it** rather than starting over. Otherwise create a small registry of your own.
 
-Put the registry in its **own subdirectory** (e.g. `telemetry/registry/`), **never the repo root** —
-weaver treats the whole registry directory as the registry and chokes on any non-registry YAML it
-finds there (a collector config, a linter config, …), which makes the live-check fail to start
-entirely. Name the manifest `manifest.yaml`. Its identity fields — `name`, and either `schema_url` or
-both `schema_base_url` and `semconv_version` — live at the **top level**, with imported registries
-declared in a top-level **`dependencies:`** list (each entry a `name` and a `registry_path`). A
-minimal valid shape:
+Get the upstream OpenTelemetry conventions resolvable as a dependency and reference the standard
+namespaces you actually emit, so the registry is a truthful manifest of your telemetry. The exact
+YAML shape, directory rules, and import spelling — including the trap where a misspelled import is
+silently ignored while `weaver registry check` still passes — are in
+**[references/weaver-registry.md](references/weaver-registry.md)**.
 
-```yaml
-name: <service>-registry
-# Use your OWN schema_url host — NOT opentelemetry.io/schemas/... A schema_url under
-# opentelemetry.io makes your registry share the upstream's identity and weaver fails with a
-# "circular dependency" error.
-schema_url: https://<your-app>/schemas/1.0.0
-dependencies:
-  - name: otel
-    registry_path: https://github.com/open-telemetry/semantic-conventions.git[model]
-```
-
-`dependencies:` makes the upstream conventions *resolvable*, but importing alone does **not** make
-them count in live-check — the check only credits attributes your registry actually **references**, so
-standard attributes are still flagged as undefined. Reference the namespaces you emit with a top-level
-**`imports:`** block (a sibling of `groups:`, in any registry file). `imports:` pulls in **signals** —
-`spans`, `metrics`, `events`, `entities` — by glob, and each imported signal transitively references
-its attributes:
-
-```yaml
-imports:
-  spans:
-    - http.*
-    - db.*
-  metrics:
-    - http.*
-    - db.*
-```
-
-Import the signal namespaces your telemetry actually uses (add `messaging.*`, `rpc.*`, etc. as they
-apply). `imports:` only takes signal types — there is no bare `attributes:` import — so a few
-attributes in signal-less namespaces will still be flagged; pick those up reactively with explicit
-refs in step 5. A `registries:` block (or any other spelling) is **silently ignored** and
-`weaver registry check` still passes, so a wrong import only surfaces at live-check. After writing the
-manifest, confirm with **`weaver registry live-check`** that standard attributes such as `http.route`
-validate rather than being reported as undefined.
-
-If given a URL with standards that is not a valid weaver registry, read the page and extract all attributes and any format is given and re-use those whenever possible in step 5.
+If given a URL with standards that is not a valid weaver registry, read the page, extract the
+attributes and any formats it defines, and reuse those in step 5.
 
 
 ### 4. Add business context
@@ -167,23 +135,21 @@ from a generic checklist.
 
 ### 5. Define your attributes in a weaver registry
 
-Define all attributes that you have added in step 4, except for ones already defined in an imported registry. Include name, type, a
-one-line brief and example values.
-
-The `imports:` block from step 3 covers the standard attributes carried by the signals you import. For
-any **standard** attribute the live-check still flags as undefined — the stragglers that live in
-signal-less namespaces (e.g. `url.*`, `client.*`, `user_agent.*`) — add an explicit `ref:` to it in a
-group so it validates too. Let the live-check tell you which ones rather than enumerating them up
-front.
+Add a definition for every attribute you introduced in step 4 that isn't already covered by an
+import — name, type, a one-line brief, and example values. Walk the attributes your instrumentation
+actually emits and make sure each one is either imported or explicitly ref'd; standard attributes in
+signal-less namespaces (e.g. `url.*`, `client.*`, `user_agent.*`) need an explicit `ref:`, since the
+`imports:` block from step 3 can't pull them in. See
+**[references/weaver-registry.md](references/weaver-registry.md)** for the mechanics.
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
-malformed or inconsistent registry is a defect to correct now. This is a static check of the registry
-*definition* itself;
+malformed or inconsistent registry is a defect to correct now. This checks the registry *definition*
+itself; proving it matches the emitted telemetry happens in step 6.
 
 ### 6. Prove it works
 
-Once you have finished all of the instrumentation changes that are needed, drive the app under real, representative traffic so it emits telemetry via the generate traffic cmd. **Run it with the export
-configuration actually active** — the correct `OTEL_*` environment variables in place that you gathered in step 1.
+Once you have finished all of the instrumentation changes that are needed, drive the app under real,
+representative traffic so it emits telemetry. **Run it with the export configuration actually active** — the correct `OTEL_*` environment variables in place that you gathered in step 1.
 (such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
 `OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
 
@@ -192,10 +158,13 @@ configuration actually active** — the correct `OTEL_*` environment variables i
 broken (see step 2), not that the app is quiet — treat it as a defect to fix, not a pass. Do this
 before handing off so a half-wired metrics or logs pipeline can't slip through as "done".
 
-**Then spawn a Task sub-agent to verify the output with the `otel-verification` skill.**
-In the prompt, include the information needed to find telemetry. What service.name, environment, weaver registry and naming conventions that you were given.
+**Then invoke the `otel-verification` skill to verify the output** — run it with a clean context (a
+sub-agent / separate task) so it judges the telemetry independently. Give it the information needed
+to find the telemetry: the `service.name`, environment, weaver registry, and naming conventions you
+were given.
 
-If the check comes back a FAIL, fix what it flagged, start the application again, generate traffic and call the verification skill one more time in a fresh Task sub-agent with the same prompt.
+If the check comes back a FAIL, fix what it flagged, start the application again, generate traffic,
+and run the verification skill once more with a fresh context and the same prompt.
 
 If the second check also fails, make sure to mention that in the final output to the user with an overview of the failures.
 

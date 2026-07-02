@@ -87,17 +87,19 @@ new packages conflict with an existing dependency, resolve the conflict — adju
 conflicting package to an optional group you exclude, or pick compatible versions.
 
 Lastly, check whether the OpenTelemetry libraries in use support the current semantic conventions.
-Where a library's installed version is behind — it emits deprecated attributes and a newer version
-would emit the current ones — **ask the user whether they want to upgrade it (unless you already
-have explicit permission), and upgrade only if they agree.** Some libraries also require a specific
-value in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable. When that applies, set that
-variable, add it to any startup scripts, and note it in the final report.
+When a library emits deprecated attributes, do not stop at what its installed version does —
+**look up the latest released version and which conventions that version emits** before drawing any
+conclusion. The installed pin is a starting point, not a fixed constraint; if a newer version emits
+the current conventions, upgrade to it (bump the manifest + lockfile). Some libraries instead require
+a specific value in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable; when that applies, set
+it, add it to any startup scripts, and note it in the final report.
 
-A library whose **latest** version still emits deprecated conventions — and that no
+Only a library whose **latest released** version still emits deprecated conventions — and that no
 `OTEL_SEMCONV_STABILITY_OPT_IN` value or configuration can move onto the current ones — is a **known
-limitation, not a defect you can fix**: you can't ship changes to a dependency (see below). Don't
-conclude this until you've actually exhausted the upgrade *and* the opt-in — it is not a shortcut
-past a fixable gap. Once you have, note which library it is and which attributes or namespace it
+limitation, not a defect you can fix** (you can't ship changes to a dependency). Claiming this
+requires having checked that latest version: **state the version you confirmed still emits the old
+names.** "The installed version doesn't support it" is never sufficient — that is the exact shortcut
+this guards against. Once you have, note which library it is and which attributes or namespace it
 emits the old way, and carry that forward: verification will flag it in step 6, where you reconcile
 it rather than chase it, and you disclose it in step 7.
 

@@ -12,7 +12,7 @@ description: >
   "validate my spans", "check semantic conventions",
   or any request to confirm or assess emitted OpenTelemetry telemetry.
 metadata:
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 # OpenTelemetry Verification
@@ -40,14 +40,15 @@ and point back at instrumentation.
 
 ## Steps
 
-Judging happens in two passes: a **basic check** that is concrete and reproducible, then an
-open-ended **exploration** for depth.
+Work in three passes: **gather** reproducible evidence from the telemetry, **score** each named
+test below, then **report** the verdict and findings. Every test scores **PASS**, **FAIL**, or
+**N/A**, and carries the specific finding(s) that justify anything other than PASS.
 
-### 1. Basic checks — concrete and reproducible
+### 1. Gather the evidence
 
-Run a fixed set of checks, each expressible as a Honeycomb query you run now and the user can re-run
-later. These queries *are* the reproducible evidence in your report. Use the Honeycomb MCP
-(`list_spans`, `get_span_details`, `run_query`, …) where available.
+Each check is a Honeycomb query you run now and the user can re-run later — these queries *are* the
+evidence in your report. Use the Honeycomb MCP (`list_spans`, `get_span_details`, `run_query`, …)
+where available.
 
 **Query lean.** Every result you pull stays in your context for the rest of the session, so ask each
 query for the least that answers the check. Reach first for the discovery tools — `list_spans` to see
@@ -58,36 +59,66 @@ across many columns with a high limit returns a large table you then carry for t
 break down when you actually need the cross-tabulation, and keep the columns and limit to what the
 check requires.
 
-- **Is telemetry arriving?** Count events in the environment over a recent window. If zero, stop — **BLOCKED**.
-- **Which signals?** Check for **all three** — traces, metrics, and logs — keying off `service.name` and looking across datasets (metrics and logs land in separate datasets from traces, not just the trace dataset). Report the count of each. A signal with **zero** records is a **finding**, not something to pass over: for a typical service all three are expected, and a missing one usually means that export pipeline was never wired (a common failure is logs — the app writes to stdout but nothing bridges to an OTLP log exporter). Only exempt a signal if the app genuinely has no source for it, and say so explicitly.
-  - **Confirming metrics arrive is a two-query flow — don't guess the dataset or break down by metric name.** (1) `get_environment` and find the dataset whose `dataset_type = metrics` — do **not** invent a slug like `<service>-metrics` or match on "metrics" in the name. (2) `run_query` that dataset with `COUNT_DATAPOINTS` filtered to `service.name = <service>` over a recent window; non-zero means metrics are flowing. That is all "are any metrics arriving?" needs — **no breakdown**. There is no metric-name column to group by (each metric is its own column), so a metric-name breakdown just errors; if you later want to know *which* metrics, list them with `get_dataset_columns`. Bare `COUNT` / `RATE_*` are rejected on metrics datasets — see the **metrics-queries** skill for the full rules.
-- **Service identity** — group by `service.name`: it is set, correct, and not the `unknown_service` default.
-- **Traces well-formed (non-trivial — use the relational query)** — a broken trace has child spans but no root span. Catch it in one query with Honeycomb's relational fields: `COUNT` filtered to `none.trace.parent_id does-not-exist` **and** `any.trace.parent_id exists` — traces that contain spans *with* a parent but *no* span that lacks one (no root). That count should be **0**; anything above means orphaned traces. Then pull a few random sample traces and walk them by eye for missing spans — gaps where work you'd expect to see simply isn't there.
-- **Errors captured *when they occur*** — *if* the data contains failed operations, they carry error status and exception detail rather than reporting silent success. **No errors in the window is neither a pass nor a fail** — they may simply not have happened, and you can't confirm error instrumentation from telemetry that contains none. Treat that as untested coverage to note, not a verdict.
-- **Conventions** — span and attribute names are present, well-formed, and follow the *current* stable semantic conventions, not deprecated or superseded names (conventions get renamed as they stabilise — e.g. the HTTP attributes were). Look them up rather than assuming: `search_semconv`, `get_semconv_attribute`, plus the org's registry/standard where one exists; flag outdated ones. Span names stay low-cardinality — for HTTP servers that specifically means `http.route` is present, since without it names fall back to high-cardinality full URLs.
-- **Registry coverage (when a weaver registry was provided)** — get the list of attributes the service **actually emits** from Honeycomb (`get_dataset_columns` / `find_columns` across the trace, metric, and log datasets that had data sent to them very recently), then let weaver compare that emitted set against the registry so you don't have to eyeball it. weaver checks a JSON sample file of the emitted attributes against the registry — no live stream, no app boot. The full procedure — building the sample file, the exact `weaver registry live-check` invocation and flag guidance, and how to read the verdict from `statistics` — is in **[references/weaver-live-check.md](references/weaver-live-check.md)**. The registry is the standard: attributes emitted-but-undocumented and defined-but-never-emitted are both findings.
+**Is anything arriving at all?** Count events for the service over a recent window. If nothing is
+arriving, stop — the verdict is **BLOCKED** and no tests are scored; point back at instrumentation.
 
-### 2. Explore for depth — open-ended judgment
+Otherwise gather what each test needs:
 
-The basic checks confirm the plumbing works; this asks whether the data is actually *useful*. There
-is no fixed query list — explore, scoped to the **focus** if one was given, otherwise broadly:
+- **Signals present** (`has_traces`, `has_logs`, `has_metrics`) — check for all three, keying off `service.name`, across datasets (metrics and logs land in *separate* datasets from traces). Report the count of each; a missing pipeline usually means it was never wired (a common miss is logs — the app writes to stdout but nothing bridges to an OTLP log exporter). Confirming metrics is a two-query flow — don't guess the dataset or break down by metric name: (1) `get_environment` and find the dataset whose `dataset_type = metrics` (do **not** invent a slug like `<service>-metrics` or match on "metrics" in the name); (2) `run_query` that dataset with `COUNT_DATAPOINTS` filtered to `service.name = <service>` over a recent window; non-zero means metrics flow.
+- **Service identity** (`has_service.name`) — group by `service.name`: set, correct, not the `unknown_service` default.
+- **Traces well-formed** (`all_root_spans`, `no_missing_spans`) — a broken trace has child spans but no root. Catch it in one query with Honeycomb's relational fields: `COUNT` filtered to `none.trace.parent_id does-not-exist` **and** `any.trace.parent_id exists` — traces with a parented span but no root. That count is `all_root_spans`'s evidence and should be **0**. Then pull a few sample traces and walk them by eye for gaps where expected work simply isn't there — that's `no_missing_spans`.
+- **HTTP span names** (`has_http.route`) — for an HTTP service, `http.route` is present on server spans, so span names stay low-cardinality instead of falling back to full URLs.
+- **Conventions** (`latest_semconv`) — span and attribute names follow the *current* stable semantic conventions, not deprecated or superseded names (conventions get renamed as they stabilise — e.g. the HTTP attributes). Look them up rather than assume: `search_semconv`, `get_semconv_attribute`; flag outdated ones.
+- **Registry check** (`weaver_custom_attrs`, `weaver_missing_attrs`, *when a weaver registry was provided*) — get the attributes the service **actually emits** (`get_dataset_columns` / `find_columns` across the trace, metric, and log datasets that received data recently), then let weaver compare that emitted set against the registry so you don't eyeball it. weaver checks a JSON sample file of the emitted attributes — no live stream, no app boot. The full procedure — building the sample file, the exact `weaver registry live-check` invocation and flag guidance, and reading the verdict from `statistics` — is in **[references/weaver-live-check.md](references/weaver-live-check.md)**. Split the result: **custom attributes the app emits** that are undocumented-in-registry *or* wrong-typed feed `weaver_custom_attrs`; **registry-declared attributes never emitted**, plus standard-semconv attributes emitted but not referenced, feed `weaver_missing_attrs`.
+- **Depth & usefulness** (`clean_traces`, `business_context`) — the checks above confirm the plumbing; this asks whether the data is actually *useful*. No fixed query list — explore, scoped to the **focus** if one was given, otherwise broadly:
+  - Open real traces end to end. Can you tell what the app did and why? Are the traces **tidy** — no junk single-span or noise traces, no swarm of stray roots, work grouped sensibly (e.g. startup migrations under one root)? → `clean_traces`
+  - Are spans **wide** — carrying the business and high-cardinality context that answers a real debugging question ("which tenant saw these errors?", "what slowed this request?") — or just generic defaults? Read a span's attributes with `get_span_details`, not a wide multi-column breakdown. **If the repo is provided**, compare what the code *could* surface (domain entities, decisions, identifiers it holds) against what the telemetry carries, and flag valuable context that isn't emitted. → `business_context`
 
-- Open real traces end to end. Following one, can you tell what the app did and why?
-- Pick a debugging question someone would actually ask ("which tenant saw these errors?", "what slowed this request?") and try to answer it from the data. Can you?
-- Are spans **wide** — carrying the business and high-cardinality context that makes those questions answerable — or just generic defaults? Read a span's populated attributes with `get_span_details` rather than a wide multi-column `run_query` breakdown; it answers "what does this span carry?" compactly.
-- **If the repo is provided**, compare what the code *could* surface (domain entities, decisions, identifiers it holds) against what the telemetry carries; flag valuable context that lives in the code but isn't emitted.
+**Errors are untested, not scored.** *If* the window contains failed operations, confirm they carry
+error status and exception detail rather than reporting silent success. But **no errors in the window
+is neither PASS nor FAIL** — they may simply not have happened, and you cannot confirm error
+instrumentation from telemetry that contains none. Note it as untested coverage.
+
+### 2. Score
+
+Assign every test below a **PASS**, **FAIL**, or **N/A**. The **overall verdict is PASS only if every
+_critical_ test is PASS** (an N/A does not block). Any critical **FAIL** makes the run **FAIL**.
+Improvement tests never change the verdict — they are reported as findings to act on. If nothing was
+arriving to judge, the verdict is **BLOCKED** and nothing below is scored.
+
+**Critical** — the telemetry is not trustworthy unless all of these pass:
+
+| Test | PASS means | FAIL / N/A |
+|---|---|---|
+| `has_traces` | trace spans arriving for the service | FAIL if none — never N/A |
+| `has_logs` | log records arriving for the service | FAIL if none; **N/A only when explicitly told to ignore logs** |
+| `has_metrics` | metric datapoints arriving for the service | FAIL if none; **N/A only when explicitly told to ignore metrics** |
+| `has_service.name` | `service.name` set and correct | FAIL if missing or `unknown_service` |
+| `all_root_spans` | no orphaned traces — the relational query returns 0 | FAIL if any trace has spans but no root |
+| `no_missing_spans` | sampled traces show no gaps in expected work | FAIL if expected spans are absent |
+| `has_http.route` | `http.route` present on HTTP server spans | FAIL if absent; N/A only if the service has no HTTP surface |
+| `weaver_custom_attrs` | every custom attribute the app emits is in the registry **and** correctly typed | FAIL on any undocumented-emitted or mistyped custom attr; N/A if no registry was provided |
+
+**Improvements** — findings that sharpen the telemetry but do not gate the verdict:
+
+| Test | PASS means | Finding when |
+|---|---|---|
+| `latest_semconv` | names use current stable semconv | deprecated or superseded names in the current data |
+| `weaver_missing_attrs` | registry and standard refs fully covered | registry-declared attrs never emitted, or standard attrs emitted but unreferenced |
+| `clean_traces` | traces are tidy and sensibly grouped | junk single-span or noise traces, stray roots, poor grouping |
+| `business_context` | spans are wide with useful business context | generic-only spans; context the code holds but does not emit |
 
 ### 3. Report
 
-Lead with the verdict and the findings — the actionable part — and keep the rest short. Deliver:
+Lead with the verdict, then the findings — the actionable part. Deliver:
 
-- **A verdict** — **PASS**, **FAIL** (issues found), or **BLOCKED** (nothing arriving to judge). A basic check that fails is a **FAIL**; exploration findings are **gaps** that can still **PASS** unless they defeat the app's core debuggability. Untested coverage (e.g. no errors occurred in the window) is noted, never a FAIL.
-- **The findings** — what's missing or weak, expressed as the questions you still can't answer (and, with the repo, the specific context the code holds but doesn't emit). Give each as **one tight entry**: the problem, where it is, and the single query or trace that demonstrates it — no transcript. Where a finding looks like it stems from a library that can't emit the current convention, say so, so the reader can reconcile rather than chase it.
+- **The verdict** — **PASS**, **FAIL**, or **BLOCKED** — followed by a **per-test result table** covering both sections, each test marked PASS / FAIL / N/A. The critical section alone determines the verdict.
+- **The findings** — grouped under the test they belong to. Give each as **one tight entry**: the problem, where it is, and the single query or trace that demonstrates it — no transcript. Where a finding stems from a library that can't emit the current convention, say so, so the reader can reconcile rather than chase it.
 - **Reproducible evidence** — a *few* representative queries, not an exhaustive transcript: enough that the reader can see it themselves rather than take your word.
 
-**Match the report to the caller.** Invoked directly, it is the user's audit — include the
-success-proof evidence above. Invoked from instrumentation, it is the input to a fix loop and lands
-straight in the caller's context: return **findings-first and lean** — the verdict, the actionable
-findings with their one demonstrating query each, and nothing more. Skip the proof-that-it-works
-narrative and the sample-trace walkthroughs; the caller already watched the data arrive and only
-needs what to fix. Either way the job is the same: judge the emitted telemetry against the standard.
+**Match the report to the caller.** Invoked directly, it is the user's audit — include the per-test
+table and the demonstrating queries. Invoked from instrumentation, it is the input to a fix loop and
+lands straight in the caller's context: return **findings-first and lean** — the verdict, the per-test
+results, and each finding with its one demonstrating query, nothing more. Skip the proof-that-it-works
+narrative and the sample-trace walkthroughs; the caller already watched the data arrive and only needs
+what to fix. Either way the job is the same: judge the emitted telemetry against the standard.

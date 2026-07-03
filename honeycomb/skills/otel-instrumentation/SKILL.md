@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
 ---
 
 # OpenTelemetry Instrumentation
@@ -186,7 +186,8 @@ itself; proving it matches the emitted telemetry happens in step 6.
 
 Once the instrumentation changes are done, prove them under real traffic. **Booting and driving the
 app is the slowest thing you do — run it as a tight loop and don't repeat it needlessly**, at most
-the initial run plus one fix-and-recheck pass:
+the initial run plus one fix-and-recheck pass — and skip even that second pass when the first
+verification already returned PASS:
 
 1. **Drive the app under real, representative traffic, with the export configuration actually
    active** — the `OTEL_*` variables you gathered in step 1 (`OTEL_EXPORTER_OTLP_ENDPOINT`,
@@ -222,10 +223,16 @@ the initial run plus one fix-and-recheck pass:
    check whether the latest library version or the opt-in fixes it; if neither can, it's a known
    limitation too.
 
-5. **Fix every *other* finding, then loop once** — restart, re-drive traffic, and verify again with a
-   fresh context and the same prompt. **Stop after this second pass.** If it still fails on findings
-   that are **not** known library limitations, don't keep looping — carry them into the handback
-   (step 7) with an overview of the failures.
+5. **Fix every finding you can — re-verify only if the first pass failed.** Address all findings
+   verification raised, **critical and improvement alike**, except the known library limitations you
+   set aside in step 4. Then decide whether to loop:
+   - If verification returned **PASS** (every critical test passed), you are done. Apply your fixes,
+     but do **not** re-boot, re-drive, or re-verify just to confirm improvement fixes — that second
+     app run is not worth its cost.
+   - If it returned **FAIL** (any critical test failed), restart, re-drive traffic, and verify once
+     more with a fresh context and the same prompt. **Stop after this second pass** — if a critical
+     test still fails on anything that is **not** a known library limitation, don't keep looping;
+     carry it into the handback (step 7) with an overview.
 
 **Separate runtime failures from instrumentation defects.** Your job is the telemetry, not the app's
 own runtime. If the app fails in a way unrelated to your changes — won't start, datastore in a bad
@@ -238,7 +245,13 @@ Lead with the outcome, not a diff: tell the user, in plain language, **what they
 ask** that they couldn't before — tied to the things they said matter — and point them at the live
 data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed.
 
-Include some evidence from the last verification step so the user can explore their new telemetry.
+**Always include the verification skill's last response in full** — its verdict, the per-test
+PASS/FAIL/N-A results, and its findings — so the user sees exactly what was judged and can explore the
+new telemetry from the queries it cites.
+
+**Note what you fixed.** For every finding you attempted to address, include a one-line note of what
+you changed to fix it (and, for anything you left, why). The reader should be able to line each
+finding up against the action you took.
 
 **Call out any known limitations explicitly.** For each subsystem where an un-upgradable library
 still emits deprecated conventions, name the library, the attributes or namespace affected, and why

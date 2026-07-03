@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # OpenTelemetry Instrumentation
@@ -46,6 +46,11 @@ and don't guess at anything only the user knows.
 ### 1. Gather
 
 Read the repo to establish the language, frameworks, entry points, and how it builds and runs.
+**Read economically** — everything you read stays in your context for the whole run. Locate the code
+you need by searching (grep/glob) and read narrowly around the hits; don't read or `cat` whole files
+when a targeted range will do. You are looking for the handful of places instrumentation attaches —
+entry points, framework wiring, and the handlers/services where business context is available — not
+a complete mental model of every file.
 Confirm the service name with the user. If the OTLP endpoint is a Honeycomb API endpoint, derive the
 environment from the ingestion key rather than asking: call `GET /1/auth` against the chosen region
 with the key in the `x-honeycomb-team` header and read `environment.name`; confirm it with the user
@@ -86,22 +91,21 @@ canonical install reproduces the instrumented dependency set. If the manifest in
 new packages conflict with an existing dependency, resolve the conflict — adjust a pin, scope the
 conflicting package to an optional group you exclude, or pick compatible versions.
 
-Lastly, check whether the OpenTelemetry libraries in use support the current semantic conventions.
-When a library emits deprecated attributes, do not stop at what its installed version does —
-**look up the latest released version and which conventions that version emits** before drawing any
-conclusion. The installed pin is a starting point, not a fixed constraint; if a newer version emits
-the current conventions, upgrade to it (bump the manifest + lockfile). Some libraries instead require
-a specific value in the `OTEL_SEMCONV_STABILITY_OPT_IN` environment variable; when that applies, set
-it, add it to any startup scripts, and note it in the final report.
+Lastly, check whether the OpenTelemetry libraries in use emit the **current** semantic conventions.
+When one emits deprecated attributes, don't stop at what its installed version does — the installed
+pin is a starting point, not a fixed constraint. For each such library, in order:
 
-Only a library whose **latest released** version still emits deprecated conventions — and that no
-`OTEL_SEMCONV_STABILITY_OPT_IN` value or configuration can move onto the current ones — is a **known
-limitation, not a defect you can fix** (you can't ship changes to a dependency). Claiming this
-requires having checked that latest version: **state the version you confirmed still emits the old
-names.** "The installed version doesn't support it" is never sufficient — that is the exact shortcut
-this guards against. Once you have, note which library it is and which attributes or namespace it
-emits the old way, and carry that forward: verification will flag it in step 6, where you reconcile
-it rather than chase it, and you disclose it in step 7.
+1. **Upgrade** — look up the latest released version and which conventions it emits; if it emits the
+   current ones, move to it (bump the manifest + lockfile).
+2. **Opt in** — otherwise, check whether a value of `OTEL_SEMCONV_STABILITY_OPT_IN` (or other config)
+   moves it onto the current conventions; if so, set it, add it to any startup scripts, and note it
+   in the final report.
+3. **Accept as a known limitation** — only when the **latest released** version still emits the old
+   names and no opt-in or config can move it (you can't ship changes to a dependency). Record the
+   library, the attributes/namespace affected, and **the version you confirmed still emits them** —
+   stating that version is required, since "the installed version doesn't support it" is never
+   sufficient and is the exact shortcut this guards against. Carry it to step 6 (reconcile, don't
+   chase) and disclose it in step 7.
 
 **Only make instrumentation changes in the application's own source code — never in its dependencies.**
 Code that comes from an installed package or framework (anything you can't edit in the repo's own
@@ -180,49 +184,48 @@ itself; proving it matches the emitted telemetry happens in step 6.
 
 ### 6. Prove it works
 
-Once you have finished all of the instrumentation changes that are needed, drive the app under real,
-representative traffic so it emits telemetry. **Run it with the export configuration actually active** — the correct `OTEL_*` environment variables in place that you gathered in step 1.
-(such as `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
-`OTEL_SERVICE_NAME` and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed.) — otherwise nothing reaches the destination and there is nothing to judge.
+Once the instrumentation changes are done, prove them under real traffic. **Booting and driving the
+app is the slowest thing you do — run it as a tight loop and don't repeat it needlessly**, at most
+the initial run plus one fix-and-recheck pass:
 
-**Confirm all three signals actually arrived** — query the destination for traces **and** metrics
-**and** logs under your `service.name`. A signal with zero records means its export pipeline is
-broken (see step 2), not that the app is quiet — treat it as a defect to fix, not a pass. Do this
-before handing off so a half-wired metrics or logs pipeline can't slip through as "done".
+1. **Drive the app under real, representative traffic, with the export configuration actually
+   active** — the `OTEL_*` variables you gathered in step 1 (`OTEL_EXPORTER_OTLP_ENDPOINT`,
+   `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed);
+   without them nothing reaches the destination and there is nothing to judge. Wait for readiness
+   with a **bounded poll** — loop on a concrete signal (a startup log line, a health endpoint, the
+   port accepting connections) with a timeout, and bail early if the process has exited — not a
+   foreground `tail -f` or a fixed `sleep` guess. Then, before reading telemetry back, wait for the
+   exporter to **flush** — watch for its own confirmation or use a single bounded wait sized to the
+   batch interval, not a blind sleep.
 
-**Then verify the output with the `otel-verification` skill, in a clean context so it judges the
-telemetry independently.** Spawn a fresh general-purpose sub-agent (a separate task) and have *it*
-invoke the `otel-verification` skill — `otel-verification` is a skill, not a registered agent type,
-so do not pass its name as the sub-agent type; that spawn just fails and the check silently never
-runs. Give the sub-agent the information needed to find the telemetry: the `service.name`,
-environment, weaver registry, and naming conventions you were given.
+2. **Confirm all three signals arrived** — a lean **count per signal** (traces, metrics, logs) under
+   your `service.name`. A signal with zero records means its export pipeline is broken (see step 2),
+   not that the app is quiet — a defect to fix, not a pass. This is a plumbing check; leave the deep
+   "is the data any good?" judgement to verification and don't pre-empt it with wide breakdowns.
 
-Verification is **mandatory**: it compares your *actual emitted* telemetry against the registry (via
-a weaver live-check), so it is the only step that catches attributes your auto-instrumentation emits
-but your registry never documented. The static `weaver registry check` from step 5 validates the
-registry's definition only — it never looks at emitted telemetry — so it is **not** a substitute, and
-neither are your own ad-hoc queries. If you truly cannot spawn a separate sub-agent, invoke the
-`otel-verification` skill in your current context rather than skip it — never hand back without a
-completed verification pass.
+3. **Verify with the `otel-verification` skill, in a clean context.** Spawn a fresh general-purpose
+   sub-agent (a separate task) and have *it* invoke the `otel-verification` skill — `otel-verification`
+   is a skill, not a registered agent type, so do **not** pass its name as the sub-agent type; that
+   spawn just fails and the check silently never runs. Give the sub-agent what it needs to find the
+   telemetry: the `service.name`, environment, weaver registry, and naming conventions you were given.
+   Verification is **mandatory** — it compares your *actual emitted* telemetry against the registry
+   (via a weaver live-check), the only step that catches attributes your auto-instrumentation emits
+   but your registry never documented. The static `weaver registry check` from step 5 validates the
+   registry *definition* only, so it is not a substitute, and neither are your own ad-hoc queries. If
+   you truly cannot spawn a sub-agent, invoke the skill in your current context rather than skip it —
+   never hand back without a completed verification pass.
 
-The verification skill judges independently and doesn't know which gaps you already found unfixable,
-so **reconcile its findings against what you learned in step 2 before you act.** A flagged convention
-that you've confirmed comes from an un-upgradable library is *expected*: carry it to step 7, don't
-try to fix it, and — since rebooting and re-driving the app is the slowest thing you do — never
-re-run the app for it. If verification flags a deprecated convention you hadn't already identified,
-check then whether the latest library version or the opt-in can fix it; if neither can, it's a known
-limitation too, and the same applies.
+4. **Reconcile the findings against what you learned in step 2** — verification judges independently
+   and doesn't know which gaps you already found unfixable. A flagged convention you've confirmed
+   comes from an un-upgradable library is *expected*: carry it to step 7, don't try to fix it, and
+   **never re-run the app for it**. A deprecated convention it flags that you hadn't identified —
+   check whether the latest library version or the opt-in fixes it; if neither can, it's a known
+   limitation too.
 
-Fix every *other* flagged finding, then start the application again, generate traffic, and run the
-verification skill once more with a fresh context and the same prompt.
-
-If the second check still fails on findings that are **not** known library limitations, mention that
-in the final output to the user with an overview of the failures.
-
-**Keep the verify loop tight** — booting and driving the app is usually the slowest thing you do, so
-don't repeat it needlessly.
-Wait for readiness with a **bounded poll** — loop on a concrete signal
-(a startup log line, a health endpoint, the port accepting connections) with a timeout, and bail early if the process has exited — rather than a foreground `tail -f` (which can block long past the match) or a fixed `sleep` guess. Likewise, before you read telemetry back, wait for the exporter to actually flush — watch for its own confirmation, or use a single bounded wait sized to the batch interval — not a blind sleep.
+5. **Fix every *other* finding, then loop once** — restart, re-drive traffic, and verify again with a
+   fresh context and the same prompt. **Stop after this second pass.** If it still fails on findings
+   that are **not** known library limitations, don't keep looping — carry them into the handback
+   (step 7) with an overview of the failures.
 
 **Separate runtime failures from instrumentation defects.** Your job is the telemetry, not the app's
 own runtime. If the app fails in a way unrelated to your changes — won't start, datastore in a bad
@@ -235,7 +238,7 @@ Lead with the outcome, not a diff: tell the user, in plain language, **what they
 ask** that they couldn't before — tied to the things they said matter — and point them at the live
 data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed.
 
-Include some of the evidence from the last verification step so the user can explore their new telemetry.
+Include some evidence from the last verification step so the user can explore their new telemetry.
 
 **Call out any known limitations explicitly.** For each subsystem where an un-upgradable library
 still emits deprecated conventions, name the library, the attributes or namespace affected, and why
@@ -243,4 +246,4 @@ it can't be fixed (latest version and the `OTEL_SEMCONV_STABILITY_OPT_IN` opt-in
 Frame it as an accepted gap with a reason, not a failure — and where one exists, point at the
 upstream version or issue that would close it.
 
-Finally, end with a list of environment variables that the user should set to send telemetry to an endpoint. At a minimum, this would include `OTEL_EXPORTER_OTLP_ENDPOINT` with optionally `OTEL_EXPORTER_OTLP_HEADERS` to do any authentication. If headers like `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` are needed and not set in existing startup scripts, they need to be mentioned as well.
+Finally, list the environment variables the user must set to export telemetry — at minimum `OTEL_EXPORTER_OTLP_ENDPOINT`, plus `OTEL_EXPORTER_OTLP_HEADERS` for any authentication. Also mention `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` if they are needed and not already set in the startup scripts.

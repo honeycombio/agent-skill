@@ -12,7 +12,7 @@ description: >
   "validate my spans", "check semantic conventions",
   or any request to confirm or assess emitted OpenTelemetry telemetry.
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # OpenTelemetry Verification
@@ -49,6 +49,15 @@ Run a fixed set of checks, each expressible as a Honeycomb query you run now and
 later. These queries *are* the reproducible evidence in your report. Use the Honeycomb MCP
 (`list_spans`, `get_span_details`, `run_query`, …) where available.
 
+**Query lean.** Every result you pull stays in your context for the rest of the session, so ask each
+query for the least that answers the check. Reach first for the discovery tools — `list_spans` to see
+what spans exist, `get_span_details` to see which attributes a span populates and their top values —
+they return compact summaries. Use `run_query` for the specific calculation a check needs: an
+*existence* check is a `COUNT` filtered to the attribute, not a wide breakdown. A `COUNT` broken down
+across many columns with a high limit returns a large table you then carry for the whole run — only
+break down when you actually need the cross-tabulation, and keep the columns and limit to what the
+check requires.
+
 - **Is telemetry arriving?** Count events in the environment over a recent window. If zero, stop — **BLOCKED**.
 - **Which signals?** Check for **all three** — traces, metrics, and logs — keying off `service.name` and looking across datasets (metrics and logs land in separate datasets from traces, not just the trace dataset). Report the count of each. A signal with **zero** records is a **finding**, not something to pass over: for a typical service all three are expected, and a missing one usually means that export pipeline was never wired (a common failure is logs — the app writes to stdout but nothing bridges to an OTLP log exporter). Only exempt a signal if the app genuinely has no source for it, and say so explicitly.
   - **Confirming metrics arrive is a two-query flow — don't guess the dataset or break down by metric name.** (1) `get_environment` and find the dataset whose `dataset_type = metrics` — do **not** invent a slug like `<service>-metrics` or match on "metrics" in the name. (2) `run_query` that dataset with `COUNT_DATAPOINTS` filtered to `service.name = <service>` over a recent window; non-zero means metrics are flowing. That is all "are any metrics arriving?" needs — **no breakdown**. There is no metric-name column to group by (each metric is its own column), so a metric-name breakdown just errors; if you later want to know *which* metrics, list them with `get_dataset_columns`. Bare `COUNT` / `RATE_*` are rejected on metrics datasets — see the **metrics-queries** skill for the full rules.
@@ -65,16 +74,20 @@ is no fixed query list — explore, scoped to the **focus** if one was given, ot
 
 - Open real traces end to end. Following one, can you tell what the app did and why?
 - Pick a debugging question someone would actually ask ("which tenant saw these errors?", "what slowed this request?") and try to answer it from the data. Can you?
-- Are spans **wide** — carrying the business and high-cardinality context that makes those questions answerable — or just generic defaults?
+- Are spans **wide** — carrying the business and high-cardinality context that makes those questions answerable — or just generic defaults? Read a span's populated attributes with `get_span_details` rather than a wide multi-column `run_query` breakdown; it answers "what does this span carry?" compactly.
 - **If the repo is provided**, compare what the code *could* surface (domain entities, decisions, identifiers it holds) against what the telemetry carries; flag valuable context that lives in the code but isn't emitted.
 
 ### 3. Report
 
-Deliver:
+Lead with the verdict and the findings — the actionable part — and keep the rest short. Deliver:
 
 - **A verdict** — **PASS**, **FAIL** (issues found), or **BLOCKED** (nothing arriving to judge). A basic check that fails is a **FAIL**; exploration findings are **gaps** that can still **PASS** unless they defeat the app's core debuggability. Untested coverage (e.g. no errors occurred in the window) is noted, never a FAIL.
-- **Reproducible evidence** — a few representative queries the user can re-run, not an exhaustive transcript; lean on the exploration-phase ones that show a real question being answered, plus a sample trace or two. Enough for them to see it themselves rather than take your word.
-- **The gaps** — what's missing or weak, expressed as the questions you still can't answer (and, with the repo, the specific context the code holds but doesn't emit). **Return each issue with the query that demonstrates it**, wherever one applies — the not-exhaustive rule above is about proof-of-success, not findings; every reproducible issue gets its query.
+- **The findings** — what's missing or weak, expressed as the questions you still can't answer (and, with the repo, the specific context the code holds but doesn't emit). Give each as **one tight entry**: the problem, where it is, and the single query or trace that demonstrates it — no transcript. Where a finding looks like it stems from a library that can't emit the current convention, say so, so the reader can reconcile rather than chase it.
+- **Reproducible evidence** — a *few* representative queries, not an exhaustive transcript: enough that the reader can see it themselves rather than take your word.
 
-When invoked from instrumentation, this report is the input to its fix loop; invoked directly, it is
-the user's audit. Either way the job is the same: judge the emitted telemetry against the standard.
+**Match the report to the caller.** Invoked directly, it is the user's audit — include the
+success-proof evidence above. Invoked from instrumentation, it is the input to a fix loop and lands
+straight in the caller's context: return **findings-first and lean** — the verdict, the actionable
+findings with their one demonstrating query each, and nothing more. Skip the proof-that-it-works
+narrative and the sample-trace walkthroughs; the caller already watched the data arrive and only
+needs what to fix. Either way the job is the same: judge the emitted telemetry against the standard.

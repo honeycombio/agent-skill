@@ -12,7 +12,7 @@ description: >
   "validate my spans", "check semantic conventions",
   or any request to confirm or assess emitted OpenTelemetry telemetry.
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # OpenTelemetry Verification

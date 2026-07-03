@@ -13,7 +13,7 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "0.2.3"
+  version: "0.2.4"
 ---
 
 # OpenTelemetry Instrumentation
@@ -192,7 +192,11 @@ verification already returned PASS:
 1. **Drive the app under real, representative traffic, with the export configuration actually
    active** — the `OTEL_*` variables you gathered in step 1 (`OTEL_EXPORTER_OTLP_ENDPOINT`,
    `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed);
-   without them nothing reaches the destination and there is nothing to judge. Wait for readiness
+   without them nothing reaches the destination and there is nothing to judge. If you drive or
+   spot-check endpoints yourself, **resolve their real paths from the routing config first** — the
+   mount prefix and route registration, read in full, not a guessed URL. A guessed path 404s, and its
+   HTML error body also breaks any `jq`/variable extraction downstream, compounding the confusion.
+   Wait for readiness
    with a **bounded poll** — loop on a concrete signal (a startup log line, a health endpoint, the
    port accepting connections) with a timeout, and bail early if the process has exited — not a
    foreground `tail -f` or a fixed `sleep` guess. Then, before reading telemetry back, wait for the
@@ -238,6 +242,14 @@ verification already returned PASS:
 own runtime. If the app fails in a way unrelated to your changes — won't start, datastore in a bad
 state, a port taken, app-level errors you didn't introduce — that's an environment failure, not an
 instrumentation defect. Capture the evidence and hand back rather than trying to fix the app.
+
+**Don't chase failures you don't own.** Before investigating any failure, establish whether it is
+*yours*. A test in the app's own suite that **already fails on the untouched baseline** (confirm with
+one `git stash && <run it> && git stash pop`), or one that asserts on environment-specific behaviour
+(filesystem permissions, wall-clock, external services), is pre-existing — not something your
+instrumentation broke. Likewise a **non-blocking warning** (a tool that prints a deprecation notice
+but still exits success) is not a failure. In both cases note it and move on; do not open a forensic
+investigation into a problem that predates your changes or doesn't gate anything.
 
 ### 7. Hand back
 

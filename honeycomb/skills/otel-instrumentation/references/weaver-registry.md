@@ -56,9 +56,33 @@ in signal-less namespaces (e.g. `url.*`, `client.*`, `user_agent.*`) aren't cove
 explicit `ref:` to each of those in a group. Walk the attributes your instrumentation actually emits
 and make sure each one is either imported or explicitly ref'd.
 
+## Don't forget the resource attributes
+
+Every OTel SDK stamps a fixed set of **resource attributes** onto everything it exports —
+`service.name`, `service.version`, `service.instance.id`, and the `telemetry.sdk.*` family — with no
+code on your part. They are always present in the telemetry, so the registry must cover them too, or
+the live-check flags each one as an attribute that "does not exist in the registry." Import them via
+the `entities` signal (a sibling of `spans:`/`metrics:` under `imports:`) or `ref:` them explicitly:
+
+```yaml
+imports:
+  entities:
+    - service.*
+    - telemetry.*
+```
+
 ## Verify the import actually loaded
 
 A `registries:` block (or any other misspelling of `dependencies:`/`imports:`) is **silently
 ignored**, and `weaver registry check` still passes even when the import is wrong. So `check`
 passing does **not** prove your imports resolved — confirm that the standard attributes you expect
 are actually referenced before trusting the registry.
+
+Confirm it in **one** `resolve` — don't re-run `check` repeatedly to poke at it. Resolve the registry
+and look for a standard attribute you imported; a non-zero count proves the import landed:
+
+```
+weaver registry resolve --registry <registry-dir> --format json | grep -c '"http.route"'
+```
+
+Run `check` once (it's a static pass/fail) and `resolve` once (to confirm imports) — then move on.

@@ -62,6 +62,14 @@ defer span.End()
 Never start a span from `context.Background()` inside a request path, and pass `ctx` down through the
 call chain (including into DB calls, e.g. `db.WithContext(ctx)`), so spans link into one trace.
 
+Threading `ctx` through a call graph is **one refactor, not a build-fix loop**. Adding a
+`context.Context` parameter to a function breaks *every* caller, and `go build`/`go vet` will surface
+them one layer at a time — so enumerate the whole set up front instead of chasing errors edit by edit.
+Before you start editing, grep for every caller of the functions you're threading through — including
+the ones that are easy to forget: **`*_test.go` files**, `AutoMigrate`/setup helpers, and callers in
+other packages. Edit them all in one pass, then build **once**. A single planned sweep replaces a long
+patch→`vet`→patch→`vet` cycle.
+
 ## Logs — bridge the app's real logger
 
 A `LoggerProvider` exports nothing until the app's logger is routed through a bridge:

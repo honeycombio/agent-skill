@@ -32,6 +32,15 @@ It exits without needing a live stream:
 weaver registry live-check --registry <registry-dir> --input-source emitted.json --input-format json --no-stream --format json
 ```
 
+**Run it once and read `.statistics` — don't re-run live-check with a succession of ad-hoc greps to
+reverse-engineer the output shape.** The whole verdict is in one object; pull it in a single pass:
+
+```
+weaver registry live-check --registry <registry-dir> --input-source emitted.json --input-format json --no-stream --format json \
+  | jq '.statistics'          # or, if jq is absent:
+  # python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["statistics"], indent=2))'
+```
+
 Do **not** pass `--include-unreferenced`: it folds the entire upstream semconv into "the registry"
 (hundreds of attributes), which flattens `registry_coverage` and buries the "defined but never
 emitted" signal under attributes the app never touches. Leaving it off keeps the registry universe

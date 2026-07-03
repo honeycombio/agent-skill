@@ -17,6 +17,19 @@ Configure entirely through env / system properties: `OTEL_SERVICE_NAME`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` (e.g. `x-honeycomb-team=<key>`), and
 `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf` for Honeycomb's OTLP/HTTP endpoint.
 
+## Always set these two in the launch script
+
+Set both on **every** run, up front in the launch command — not in reaction to a warning after
+you've already paid for a boot:
+
+- **`OTEL_BSP_MAX_QUEUE_SIZE=16384`** (and `OTEL_BSP_MAX_EXPORT_BATCH_SIZE=2048`). The default queue
+  is 2048; a Spring app fans out many spans per request and silently overflows it, and the agent logs
+  `BatchSpanProcessor dropped N span(s) ... queue is full`. You only see the drop *after* a full
+  boot + traffic run, so a too-small queue costs you an entire extra boot+traffic cycle to discover
+  and fix. Size it generously from the start.
+- **`OTEL_SEMCONV_STABILITY_OPT_IN`** — see the next section. Set it in the same edit; don't wait to
+  find out a namespace is on old names after the first run.
+
 ## service.name lives in the launch script
 
 The agent owns the `Resource` — there is **no** code path to set `service.name`. So
@@ -48,7 +61,10 @@ report; the API goes in `pom.xml` / `build.gradle`.
 
 ## Semantic-convention opt-in
 
-Move HTTP/DB instrumentation onto stable conventions with `OTEL_SEMCONV_STABILITY_OPT_IN` (`http`,
-`database`, or the `…/dup` variants during migration). The agent tracks the conventions closely, so
-**upgrading the agent jar to the latest release** is the main lever for staying current — do that
+Always set `OTEL_SEMCONV_STABILITY_OPT_IN` to move instrumentation onto the current stable
+conventions — set it in the launch script on every run, not only after you notice an old attribute
+name. Start with `http,database` (the HTTP and DB stable conventions); add further tokens (e.g.
+`code`) for other namespaces the agent version still emits under old names, and use the `…/dup`
+variants during a migration when you need both spellings. The agent tracks the conventions closely,
+so **upgrading the agent jar to the latest release** is the main lever for staying current — do that
 before concluding a convention gap is unfixable.

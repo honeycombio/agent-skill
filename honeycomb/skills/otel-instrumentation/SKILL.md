@@ -2,8 +2,8 @@
 name: otel-instrumentation
 description: >
   Make an application observable: add OpenTelemetry instrumentation so the app emits traces,
-  metrics, and logs that make it debuggable in production, send them to Honeycomb, and prove
-  it works.
+  metrics, and logs that make it debuggable in production, following current semantic conventions
+  and documented in a weaver registry, and send them to Honeycomb.
   Trigger phrases: "instrument my app", "add tracing",
   "set up OpenTelemetry", "configure OTel", "add custom spans",
   "add attributes to spans", "send traces to Honeycomb",
@@ -13,14 +13,15 @@ description: >
   or any request about OpenTelemetry SDK setup, custom instrumentation,
   or sending data to Honeycomb.
 metadata:
-  version: "0.2.4"
+  version: "0.3.0"
 ---
 
 # OpenTelemetry Instrumentation
 
 Make the target application observable: running the way it normally runs, it should emit traces,
 metrics, and logs that follow current OpenTelemetry semantic conventions and carry the business
-context needed to debug it in production. **Prove it under real traffic before you call it done.**
+context needed to debug it in production. **Follow current semantic conventions and document every
+attribute you emit in a weaver registry.**
 
 ## Before you start
 
@@ -32,10 +33,7 @@ and don't guess at anything only the user knows.
 - **repo path** — the app to instrument
 - **service name** — the `service.name` / Honeycomb dataset the telemetry uses (ask if not given; never invent one)
 - **language + runtime**, and the **frameworks** in play (HTTP server, DB client, ORM, queue) — discover from the repo
-- **how to build, run, and drive real traffic** through the app — discover or ask
-- **OTLP endpoint** — where telemetry is sent. If not provided, ask whether it is **Honeycomb (US)**, **Honeycomb (EU)**, or **Other** (an organisation's collector / gateway — the user supplies the URL)
-- **Honeycomb ingestion key** — the API key to send with *when exporting directly to Honeycomb* (ask; never hardcode it). The environment it sends to is *derived from the key* — see step 1. When the endpoint is a collector/gateway, use whatever auth that endpoint expects (often none from the app)
-- **query access for verification** — the Honeycomb MCP, or a Honeycomb *query* API key (read access) for the destination environment. Distinct from the ingestion key above; step 6 needs it so verification can read back what landed
+- **how to build and run** the app — discover or ask; you need it to wire dependencies, place export env vars in the right startup scripts, and tell the user how to run it at handback
 - **what the app does and what the user cares about debugging** — this drives the business context
 - **attribute standards** — ask whether the org has a registry or document that *defines existing attributes and their values* (a **weaver registry**, or an established conventions page) to look up and reuse verbatim — alongside the OpenTelemetry semantic conventions
 - **naming conventions** — ask the rules for *creating a new* attribute when no standard one fits (namespace/prefix, casing, structure); default to an `app.*` namespace if there are none
@@ -51,11 +49,11 @@ you need by searching (grep/glob) and read narrowly around the hits; don't read 
 when a targeted range will do. You are looking for the handful of places instrumentation attaches —
 entry points, framework wiring, and the handlers/services where business context is available — not
 a complete mental model of every file.
-Confirm the service name with the user. If the OTLP endpoint is a Honeycomb API endpoint, derive the
-environment from the ingestion key rather than asking: call `GET /1/auth` against the chosen region
-with the key in the `x-honeycomb-team` header and read `environment.name`; confirm it with the user
-(a Classic key returns an empty name). For that endpoint, also set `OTEL_EXPORTER_OTLP_HEADERS` to
-`x-honeycomb-team=<ingest key>`.
+Confirm the service name with the user. Wire export through the **standard OTLP environment
+variables** — `OTEL_EXPORTER_OTLP_ENDPOINT` for the destination and `OTEL_EXPORTER_OTLP_HEADERS` for
+any auth (e.g. `x-honeycomb-team=<ingest key>` for Honeycomb) — so the app honours them at runtime.
+Never hardcode an endpoint or a key; the user supplies those when they run it (you list them at
+handback, step 6).
 
 ### 2. Enable auto-instrumentation
 
@@ -72,7 +70,7 @@ the OpenTelemetry SDK with the standard framework instrumentations. Keep custom 
 take the least-custom path the language and framework support. Set the service identity —
 `service.name`, plus `service.version` where readily available. This is one knob, not two: prefer the
 `OTEL_SERVICE_NAME` environment variable (the default path, and the only one for zero-code agents)
-over setting it in code, and apply it consistently with step 7.
+over setting it in code, and list it consistently with the other export env vars in the handback.
 
 **A signal only counts if it is actually exported — wire each pipeline end to end.** A zero-code agent
 normally covers all three; an SDK setup must wire each one explicitly, and it is easy to build a
@@ -82,7 +80,9 @@ exporter. Two half-configurations look done but export zero records: enabling on
 **correlation** (injecting trace IDs into log lines) with no export pipeline; or standing up a
 `LoggerProvider` + exporter but never **bridging** the app's real logger to it, so it keeps writing to
 stdout. **Metrics** have the same shape — a `MeterProvider` with an OTLP metric exporter, not just
-instruments. Don't assume; step 6 must confirm records of each signal actually arrive.
+instruments. Don't assume; trace each signal's pipeline in the code end to end — provider →
+exporter, and for logs the bridge from the app's real logger — and confirm all three are wired
+before you hand off.
 
 **Declare the new dependencies in the project's manifest, not just the live environment.** Add the
 OpenTelemetry packages the way the project declares its other dependencies (`uv add` / `pyproject.toml`,
@@ -104,8 +104,7 @@ pin is a starting point, not a fixed constraint. For each such library, in order
    names and no opt-in or config can move it (you can't ship changes to a dependency). Record the
    library, the attributes/namespace affected, and **the version you confirmed still emits them** —
    stating that version is required, since "the installed version doesn't support it" is never
-   sufficient and is the exact shortcut this guards against. Carry it to step 6 (reconcile, don't
-   chase) and disclose it in step 7.
+   sufficient and is the exact shortcut this guards against. Disclose it in the handback (step 6).
 
 **Only make instrumentation changes in the application's own source code — never in its dependencies.**
 Code that comes from an installed package or framework (anything you can't edit in the repo's own
@@ -180,90 +179,25 @@ See **[references/weaver-registry.md](references/weaver-registry.md)** for the m
 
 Validate the registry **statically** with `weaver registry check` and fix whatever it flags — a
 malformed or inconsistent registry is a defect to correct now. This checks the registry *definition*
-itself; proving it matches the emitted telemetry happens in step 6.
+itself; proving it matches the *emitted* telemetry (a weaver live-check against real data) is the job
+of the optional `otel-verification` skill — see the handback (step 6).
 
-### 6. Prove it works
+### 6. Hand back
 
-Once the instrumentation changes are done, prove them under real traffic. **Booting and driving the
-app is the slowest thing you do — run it as a tight loop and don't repeat it needlessly**, at most
-the initial run plus one fix-and-recheck pass — and skip even that second pass when the first
-verification already returned PASS:
+Your job is the instrumentation itself — the code changes and a statically-valid registry. You do
+**not** boot the app or drive traffic to prove it; that (and any judgement of the emitted data) is the
+job of the optional `otel-verification` skill, or of the user simply running their app. Hand back with
+everything they need to run it and see the result.
 
-1. **Drive the app under real, representative traffic, with the export configuration actually
-   active** — the `OTEL_*` variables you gathered in step 1 (`OTEL_EXPORTER_OTLP_ENDPOINT`,
-   `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_SERVICE_NAME`, and `OTEL_SEMCONV_STABILITY_OPT_IN` if needed);
-   without them nothing reaches the destination and there is nothing to judge. If you drive or
-   spot-check endpoints yourself, **resolve their real paths from the routing config first** — the
-   mount prefix and route registration, read in full, not a guessed URL. A guessed path 404s, and its
-   HTML error body also breaks any `jq`/variable extraction downstream, compounding the confusion.
-   Wait for readiness
-   with a **bounded poll** — loop on a concrete signal (a startup log line, a health endpoint, the
-   port accepting connections) with a timeout, and bail early if the process has exited — not a
-   foreground `tail -f` or a fixed `sleep` guess. Then, before reading telemetry back, wait for the
-   exporter to **flush** — watch for its own confirmation or use a single bounded wait sized to the
-   batch interval, not a blind sleep.
+Lead with the outcome, not a diff: tell the user, in plain language, **what they will be able to see
+and ask** once the app runs with these changes — tied to the things they said matter. Briefly
+summarise **what changed** in their code so they know what landed.
 
-2. **Confirm all three signals arrived** — a lean **count per signal** (traces, metrics, logs) under
-   your `service.name`. A signal with zero records means its export pipeline is broken (see step 2),
-   not that the app is quiet — a defect to fix, not a pass. This is a plumbing check; leave the deep
-   "is the data any good?" judgement to verification and don't pre-empt it with wide breakdowns.
-
-3. **Verify with the `otel-verification` skill, in a clean context.** Spawn a fresh general-purpose
-   sub-agent (a separate task) and have *it* invoke the `otel-verification` skill — `otel-verification`
-   is a skill, not a registered agent type, so do **not** pass its name as the sub-agent type; that
-   spawn just fails and the check silently never runs. Give the sub-agent what it needs to find the
-   telemetry: the `service.name`, environment, weaver registry, and naming conventions you were given.
-   Verification is **mandatory** — it compares your *actual emitted* telemetry against the registry
-   (via a weaver live-check), the only step that catches attributes your auto-instrumentation emits
-   but your registry never documented. The static `weaver registry check` from step 5 validates the
-   registry *definition* only, so it is not a substitute, and neither are your own ad-hoc queries. If
-   you truly cannot spawn a sub-agent, invoke the skill in your current context rather than skip it —
-   never hand back without a completed verification pass.
-
-4. **Reconcile the findings against what you learned in step 2** — verification judges independently
-   and doesn't know which gaps you already found unfixable. A flagged convention you've confirmed
-   comes from an un-upgradable library is *expected*: carry it to step 7, don't try to fix it, and
-   **never re-run the app for it**. A deprecated convention it flags that you hadn't identified —
-   check whether the latest library version or the opt-in fixes it; if neither can, it's a known
-   limitation too.
-
-5. **Fix every finding you can — re-verify only if the first pass failed.** Address all findings
-   verification raised, **critical and improvement alike**, except the known library limitations you
-   set aside in step 4. Then decide whether to loop:
-   - If verification returned **PASS** (every critical test passed), you are done. Apply your fixes,
-     but do **not** re-boot, re-drive, or re-verify just to confirm improvement fixes — that second
-     app run is not worth its cost.
-   - If it returned **FAIL** (any critical test failed), restart, re-drive traffic, and verify once
-     more with a fresh context and the same prompt. **Stop after this second pass** — if a critical
-     test still fails on anything that is **not** a known library limitation, don't keep looping;
-     carry it into the handback (step 7) with an overview.
-
-**Separate runtime failures from instrumentation defects.** Your job is the telemetry, not the app's
-own runtime. If the app fails in a way unrelated to your changes — won't start, datastore in a bad
-state, a port taken, app-level errors you didn't introduce — that's an environment failure, not an
-instrumentation defect. Capture the evidence and hand back rather than trying to fix the app.
-
-**Don't chase failures you don't own.** Before investigating any failure, establish whether it is
-*yours*. A test in the app's own suite that **already fails on the untouched baseline** (confirm with
-one `git stash && <run it> && git stash pop`), or one that asserts on environment-specific behaviour
-(filesystem permissions, wall-clock, external services), is pre-existing — not something your
-instrumentation broke. Likewise a **non-blocking warning** (a tool that prints a deprecation notice
-but still exits success) is not a failure. In both cases note it and move on; do not open a forensic
-investigation into a problem that predates your changes or doesn't gate anything.
-
-### 7. Hand back
-
-Lead with the outcome, not a diff: tell the user, in plain language, **what they can now see and
-ask** that they couldn't before — tied to the things they said matter — and point them at the live
-data in Honeycomb as proof. Briefly summarise **what changed** in their code so they know what landed.
-
-**Always include the verification skill's last response in full** — its verdict, the per-test
-PASS/FAIL/N-A results, and its findings — so the user sees exactly what was judged and can explore the
-new telemetry from the queries it cites.
-
-**Note what you fixed.** For every finding you attempted to address, include a one-line note of what
-you changed to fix it (and, for anything you left, why). The reader should be able to line each
-finding up against the action you took.
+**Tell them how to run it and light up the data.** Give the start command, how to generate
+representative traffic, and the environment variables the app must have set to export telemetry — at
+minimum `OTEL_EXPORTER_OTLP_ENDPOINT`, plus `OTEL_EXPORTER_OTLP_HEADERS` for any authentication. Also
+mention `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` if they are needed and not already set
+in the startup scripts. Once they run it and drive traffic, the telemetry flows to their destination.
 
 **Call out any known limitations explicitly.** For each subsystem where an un-upgradable library
 still emits deprecated conventions, name the library, the attributes or namespace affected, and why
@@ -271,4 +205,8 @@ it can't be fixed (latest version and the `OTEL_SEMCONV_STABILITY_OPT_IN` opt-in
 Frame it as an accepted gap with a reason, not a failure — and where one exists, point at the
 upstream version or issue that would close it.
 
-Finally, list the environment variables the user must set to export telemetry — at minimum `OTEL_EXPORTER_OTLP_ENDPOINT`, plus `OTEL_EXPORTER_OTLP_HEADERS` for any authentication. Also mention `OTEL_SEMCONV_STABILITY_OPT_IN` and `OTEL_SERVICE_NAME` if they are needed and not already set in the startup scripts.
+**Optional next step — independent verification.** To audit how good the emitted telemetry actually
+is — and, if they like, generate fresh test telemetry by running the app — the user can run the
+`otel-verification` skill against this `service.name`. It reads the emitted data and judges it against
+current semantic conventions (and, optionally, a weaver live-check against the registry you authored),
+returning a verdict and findings. It is entirely optional; nothing here depends on it.

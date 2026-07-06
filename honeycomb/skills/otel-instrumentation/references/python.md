@@ -2,7 +2,7 @@
 
 Concrete mechanics for instrumenting a Python app. Where this differs from the generic guidance in
 the skill, **this file wins**. The skill's steps (gather → auto-instrument → standards → context →
-registry → prove → hand back) still frame the work; this fills in the Python specifics.
+registry → hand back) still frame the work; this fills in the Python specifics.
 
 ## Choosing the path
 

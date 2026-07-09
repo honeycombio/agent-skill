@@ -1,4 +1,4 @@
-{
+copilot plugin install honeycombio/agent-skill:honeycomb{
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "honeycomb-plugins",
   "version": "1.1.0",

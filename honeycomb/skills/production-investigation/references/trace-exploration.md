@@ -73,10 +73,12 @@ Selected span details:
 - Large gaps between child spans (missing instrumentation or idle time)
 
 ### Errors
-- Spans with `error = true` or `exception.message` fields
+- Operation spans with `error = true`, ERROR status, or low-cardinality error attributes
 - Error spans near the root indicate top-level failures
 - Error spans deep in the tree indicate dependency failures
-- Span events often contain error details (stack traces, messages)
+- Full exception details may be on a trace-correlated Logs API event rather than the containing span
+- Query exception event rows (`event.name=exception`, `exception.type exists`, `trace.trace_id exists`),
+  then use the sampled trace ID with `get_trace`
 
 ### Instrumentation Gaps
 - Gaps in the waterfall (time not accounted for by child spans)
@@ -84,14 +86,22 @@ Selected span details:
 - Spans without descriptive names or attributes
 - Orphaned spans (no parent in the trace)
 
-## Span Events
+## Span Events and Correlated Log Events
 
 Lightweight annotations attached to a span at a specific point in time (no duration).
-- Record errors, milestones, state changes
 - Visible in the trace sidebar when a span is selected
 - Visible via `get_trace` when `show_events: true`
-- Fields: `meta.annotation_type = "span_event"`, `name`, attributes
-- Created via OTel SDK's `span.addEvent()` or equivalent
+- Legacy OTel span events use `meta.annotation_type = "span_event"`, `meta.signal_type="trace"`,
+  and the event name in `name`
+- Logs API records emitted under an active span also appear as `meta.annotation_type="span_event"`,
+  but use `meta.signal_type="log"`; their logical event name is usually in `event.name` and/or `body`
+- Correlated log rows carry `trace.trace_id` and `trace.parent_id`; their `exception.*` fields
+  remain on the event row and are not automatically hoisted onto the containing span
+- Created by OTel `span.addEvent()`/equivalent or by a Logs API emit with active context
+
+**MCP drill-down:** query the event row with `run_query`, include `trace.trace_id`, then call
+`get_trace` with `show_events=true`. Do not expect the formatted `get_trace` annotation row to
+contain every log attribute; use the original query sample for the exception payload.
 
 ## Span Links
 

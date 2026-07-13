@@ -50,7 +50,10 @@ Calculated Fields section). Include error rate as two panels: a stat panel for t
 current number, and a line graph for trends over time. To work around Honeycomb's
 "no duplicate queries" restriction, add `service.name exists` as a filter on one of them.
 
-You might also break down errors by `exception.message` to see what's failing.
+For operation-level error panels, group by low-cardinality fields such as `exception.slug`,
+`error.type`, service, or route. If the board needs full exception diagnostics from Logs API events,
+add a separate event-row query filtered by `event.name="exception"` and `exception.type exists`;
+do not assume `exception.message` is present on the containing span.
 
 ## Business metrics
 

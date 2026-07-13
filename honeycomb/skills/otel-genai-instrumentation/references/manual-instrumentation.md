@@ -790,8 +790,15 @@ The general pattern for all GenAI spans:
 
 ## Error Handling Best Practices
 
-- Set `error.type` on **every** error path — exceptions (`type(e).__name__`) and
-  non-exception error results (`"ToolExecutionError"`)
+- Set a low-cardinality error dimension on **every** error path — `error.type` (exception class
+  name or `ToolExecutionError`), `error=true`, and/or `exception.slug` as appropriate
 - Set span status to ERROR
-- Record exceptions for stack traces (`span.record_exception(e)` / `span.RecordError(err)`)
+- For new diagnostic exception events, emit a Logs API record while the span is active with
+  `event.name="exception"`, ERROR severity, and `exception.type`/`exception.message`/
+  `exception.stacktrace` (plus `exception.escaped` when applicable)
+- Logs API exception fields remain on the correlated event row, not the containing span. Agents
+  should query `event.name=exception` with `trace.trace_id exists`, sample a trace ID, and call
+  `get_trace(show_events=true)`; do not search only parent spans for `exception.*`
+- Keep `span.record_exception(e)` / `span.RecordError(err)` for compatibility with existing
+  SDKs and instrumentation where a usable Logs API is unavailable
 - Let exceptions propagate — don't swallow errors silently

@@ -27,20 +27,29 @@ Honeycomb MCP tools in a structured sequence.
 
 **Trigger**: Error rate alert, increased exception volume, or user error reports.
 
-1. **Prime context**: `get_workspace_context` -> `find_columns`
-2. **Categorize errors**: `run_query` with `COUNT WHERE error = true GROUP BY exception.message`
-   - Is it one error type or many?
-   - Are errors new or pre-existing but increased?
-3. **Find affected scope**: `COUNT WHERE error = true GROUP BY service.name, http.route`
-   - Which services and endpoints are affected?
-4. **BubbleUp on error traffic**: `run_bubbleup` comparing errored vs successful traffic
-   - Look for: request parameters, user attributes, deployment version
-5. **Trace an error**: `get_trace` on an errored trace with `show_events: true`
-   - Where does the error originate?
-   - Is it a dependency failure (deep span) or application error (shallow span)?
-   - Check span events for stack traces
-6. **Verify fix scope**: Query to confirm the error pattern
-   - `COUNT WHERE [error condition] GROUP BY [suspected cause]`
+1. **Prime context**: `get_workspace_context` -> `get_environment` -> `get_dataset_columns` (or
+   `find_columns`) for the target environment/dataset. Do not assume `event.name`,
+   `meta.signal_type`, `meta.annotation_type`, or trace fields exist.
+2. **Measure failed operations**: `run_query` with `COUNT WHERE error = true`, grouped by
+   `service.name`, route, and low-cardinality error category/`exception.slug`.
+3. **Find exception event rows**: run a separate query with
+   `event.name = "exception"`, `exception.type exists`, and `trace.trace_id exists`; include
+   `meta.signal_type = "log"` when that discovered column exists. Break down by
+   `service.name`, `exception.type`, and `trace.trace_id`. For legacy span-event exceptions,
+   also check `name = "exception"` with `meta.signal_type = "trace"`.
+   - Is it one exception type or many?
+   - Are event rows new or pre-existing but increased?
+4. **Find affected scope**: query failed spans and exception events separately; do not assume
+   exception fields on the containing span. Use `exception.message` primarily in samples or
+   targeted queries, not as the default high-cardinality grouping.
+5. **BubbleUp on the right population**: use failed spans for operation-level causes; use the
+   exception-event query for diagnostic event differences.
+6. **Trace an exception**: extract a sampled `trace.trace_id` from the exception event row and
+   call `get_trace(environment_slug, trace_id, show_events=true, view_mode="full")`.
+   - The event row is authoritative for `exception.*`, `event.name`, body, severity, and parent ID.
+   - `get_trace` is authoritative for placement and surrounding span structure.
+7. **Verify fix scope**: query both the operation-failure population and the exception-event
+   population to confirm the pattern.
 
 ## Playbook: Deployment Regression
 

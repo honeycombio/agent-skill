@@ -72,7 +72,12 @@ scenarios:
       required_patterns:
         - "(?i)exception\\.slug|exception_slug"
         - "(?i)grep|greppable|search.*code|code.*search"
-      anti_patterns: []
+        - "(?i)Logs API|event\\.name|exception event"
+        - "(?i)trace\\.trace_id|get_trace|trace context"
+        - "(?i)LogRecordProcessor|log record processor|promot(e|ion)"
+      anti_patterns:
+        - "(?i)exception.*(always )?on.*parent span|hoist.*exception|parent span.*exception.*field"
+        - "(?i)(recommend|use|add).*SpanProcessor.*(log|exception)|SpanProcessor.*promot"
     without_skill:
       expected_patterns:
         - "(?i)record_exception|RecordError|set_status"

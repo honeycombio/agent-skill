@@ -36,10 +36,26 @@ useful, the issue is often an instrumentation gap — add the missing attributes
 ### Step 2: Characterize the Problem
 Run a broad query to see the shape of the issue:
 - **Latency spike**: P99(duration_ms), HEATMAP(duration_ms) grouped by service or route
-- **Error surge**: COUNT filtered on error=true, grouped by exception.message or service
+- **Error surge**: count failed operation spans (`error=true`) by service/route/category, then
+  separately count exception event rows using `event.name=exception` and `exception.type exists`;
+  use sampled `trace.trace_id` values to drill into representative traces
 - **Unknown**: COUNT grouped by service.name to find which service has anomalous volume
 
 Also call `get_service_map` — it shows P95 durations between services and can immediately reveal which dependency is slow.
+
+**Exception data has two query surfaces:** operation failures belong on spans (`error=true`, span
+status, low-cardinality `exception.slug`/error category); full exception diagnostics may belong on
+trace-correlated Logs API event rows. Do not assume `exception.*` exists on the containing span.
+When investigating exceptions, discover the dataset schema first, query `event.name=exception`
+with `exception.type exists` and `trace.trace_id exists`, take a sample, then pass its
+`trace.trace_id` to `get_trace(show_events=true)`. For legacy span-event exceptions, also check
+`name=exception` and `meta.signal_type=trace`; Logs API events use `event.name`/`body` and
+`meta.signal_type=log`.
+
+If a service uses an exception-promoting `LogRecordProcessor`, some `exception.*` fields may also
+appear on the containing span. Treat that as an explicit client-side compatibility feature, not a
+Honeycomb guarantee: the event row remains authoritative for full diagnostics, and absence of
+parent-span fields does not mean the exception event is missing.
 
 ### Step 3: BubbleUp to Find Differentiators
 This is the highest-value step. Once you have a query showing the anomaly:
@@ -83,7 +99,10 @@ Call `create_board` with:
 HEATMAP first → BubbleUp the slow region → trace a slow request → verify with filtered queries
 
 ### Error Surge
-COUNT errors grouped by exception.message → BubbleUp the error spike → trace an errored request → verify
+Count failed operation spans by service/route/category → count Logs API exception events by
+`event.name=exception` and `exception.type` → sample `trace.trace_id` → `get_trace(show_events=true)`
+→ verify with filtered queries. Do not use `exception.message` on the parent span as the only
+exception search.
 
 ### Deployment Regression
 P99 grouped by deployment.version → BubbleUp comparing new vs old → trace from new version → verify

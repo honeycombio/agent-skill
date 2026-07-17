@@ -26,10 +26,13 @@ export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="https://api.honeycomb.io/v1/traces"
 export OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="https://api.honeycomb.io/v1/metrics"
 ```
 
-### For Metrics (Required if sending metrics)
+### For Metrics (Preferred)
+
+Prefer modern OTLP metrics and native datapoints. Use dataset hints to confirm the
+destination type (`metrics` or `events`). Authenticate with:
 
 ```bash
-export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_METRICS_DATASET"
+export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY"
 ```
 
 ### Honeycomb Authentication Pitfall
@@ -54,18 +57,17 @@ Also ensure `.env` is loaded (e.g., `import "dotenv/config"`) **before** the OTe
 initializes. In ESM/TypeScript, all imports resolve before module body code runs, so
 `dotenv.config()` in the main file may execute too late.
 
-### Honeycomb Metrics Dataset Header
+### Legacy Honeycomb Dataset Routing
 
-Honeycomb requires the `x-honeycomb-dataset` header on the OTLP **metrics** endpoint to
-route metrics to the correct dataset. Without it, metrics are silently dropped. Traces do
-not require this header (they use `service.name` for routing).
+Do not add `x-honeycomb-dataset` by default for modern OTLP metrics. Dataset hints identify
+the destination type (`metrics` or `events`). Use the header only when hints or
+configuration require legacy routing to a named event dataset:
 
 ```bash
 export OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_METRICS_DATASET"
 ```
 
-Or pass `headers` with `x-honeycomb-dataset` programmatically when constructing the
-metrics exporter.
+Traces do not need it; they route by `service.name`.
 
 ## Go
 

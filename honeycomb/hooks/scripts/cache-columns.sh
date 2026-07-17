@@ -16,7 +16,30 @@ env_slug=$(echo "$input" | jq -r '.tool_input.environment_slug // empty')
 dataset_slug=$(echo "$input" | jq -r '.tool_input.dataset_slug // empty')
 session_id=$(echo "$input" | jq -r '.session_id // "default"')
 tool_name=$(echo "$input" | jq -r '.tool_name // empty')
-tool_result=$(echo "$input" | jq -r '.tool_response[0].text // empty')
+
+# MCP PostToolUse responses use the CallToolResult object shape
+# (`{"content":[{"type":"text","text":"..."}]}`), while older Claude
+# versions exposed the content blocks as a top-level array. Accept both, plus
+# direct text objects/strings, and fail open for response types we do not know.
+tool_result=$(
+  printf '%s\n' "$input" | jq -r '
+    .tool_response
+    | if type == "array" then .
+      elif type == "object" then
+        if (.content? | type) == "array" then .content else [.] end
+      elif type == "string" then [.]
+      else []
+      end
+    | map(
+        if type == "object" then (.text? // empty)
+        elif type == "string" then .
+        else empty
+        end
+      )
+    | map(select(type == "string"))
+    | join("\n")
+  ' 2>/dev/null
+) || tool_result=""
 
 # Environment and result required — fail open if missing
 if [[ -z "$env_slug" || -z "$tool_result" ]]; then

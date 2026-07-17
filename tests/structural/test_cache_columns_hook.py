@@ -54,7 +54,15 @@ def _make_input(
         "session_id": session_id,
         "tool_name": f"mcp__honeycomb__{tool}",
         "tool_input": {"environment_slug": env_slug, "dataset_slug": dataset_slug},
-        "tool_response": [{"text": _columns_result(columns, page, total_pages, with_metadata)}],
+        "tool_response": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": _columns_result(columns, page, total_pages, with_metadata),
+                }
+            ],
+            "isError": False,
+        },
     }
 
 
@@ -91,6 +99,20 @@ class TestColumnCaching:
         _run_hook(_make_input(["http.route", "http.status_code"]), str(tmp_path))
         cache_file, _ = _paths(str(tmp_path))
         assert sorted(_cached_columns(cache_file)) == ["http.route", "http.status_code"]
+
+    def test_legacy_content_block_array_is_supported(self, tmp_path):
+        data = _make_input(["http.route"])
+        data["tool_response"] = data["tool_response"]["content"]
+        _run_hook(data, str(tmp_path))
+        cache_file, _ = _paths(str(tmp_path))
+        assert _cached_columns(cache_file) == ["http.route"]
+
+    def test_unknown_tool_response_shape_fails_open(self, tmp_path):
+        data = _make_input(["http.route"])
+        data["tool_response"] = {"structuredContent": {"columns": ["http.route"]}}
+        _run_hook(data, str(tmp_path))
+        cache_file, _ = _paths(str(tmp_path))
+        assert not os.path.exists(cache_file)
 
     def test_appends_and_dedupes_across_calls(self, tmp_path):
         _run_hook(_make_input(["http.route"]), str(tmp_path))

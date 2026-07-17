@@ -89,34 +89,19 @@ go get go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgr
 
 ## Python
 
-### Dependencies
-```bash
-pip install opentelemetry-sdk \
-            opentelemetry-exporter-otlp-proto-http \
-            opentelemetry-instrumentation-flask \
-            opentelemetry-instrumentation-requests \
-            opentelemetry-instrumentation-sqlalchemy
-```
+See `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/python.md` for the
+full Python guide: package catalogue, ASGI programmatic setup, async SQLAlchemy,
+middleware enrichment, and resource attributes.
 
-### Auto-instrumentation (recommended)
+### Quick start (WSGI apps only — Flask, Django)
 ```bash
+pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http \
+            opentelemetry-distro
 opentelemetry-instrument python app.py
 ```
 
-### Programmatic setup
-```python
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
-
-resource = Resource.create({"service.name": "your-service"})
-provider = TracerProvider(resource=resource)
-processor = BatchSpanProcessor(OTLPSpanExporter())
-provider.add_span_processor(processor)
-trace.set_tracer_provider(provider)
-```
+**For ASGI apps (FastAPI, Starlette, NiceGUI) always use programmatic setup** — the
+CLI runner doesn't integrate cleanly with ASGI lifespans. See the Python guide above.
 
 ## Node.js
 

@@ -129,6 +129,9 @@ Not every function needs a span. Two questions determine whether a span is worth
   attribute on the parent span instead.
 - **Too few spans**: Collapsing hours of work into a single opaque handler leaves you
   guessing about where time is spent.
+- **Test spans left in**: Spans named `test-span`, `debug-span`, or similar are
+  artefacts that pollute the dataset. Remove any span created solely to verify tracing
+  is working before finishing.
 
 When in doubt, prefer **attributes on existing spans** over creating new child spans.
 

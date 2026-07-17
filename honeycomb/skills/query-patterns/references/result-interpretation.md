@@ -148,7 +148,12 @@ Raw events with all columns. Key fields to look for:
 - `trace.trace_id` — feed these to `get_trace` for full trace analysis
 - `duration_ms` — span duration
 - `error` — whether the span errored
-- `name` — span/operation name
+- `name` — span/operation name; legacy span-event names also appear here
+- `event.name` — logical event name for Logs API records (including correlated exception events)
+- `body` — log body, often a duplicate/fallback event label for Logs API records
+- `meta.signal_type` — distinguish `trace` span events from `log` records when present
+- `meta.annotation_type` — `span_event` can describe both legacy span events and correlated Logs API events
+- `trace.parent_id` — the active containing span ID on a trace-correlated log event
 
 ## Statistical Interpretation Heuristics
 

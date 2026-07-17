@@ -280,23 +280,40 @@ func ChatStream(ctx context.Context, client *openai.Client, model string, messag
 
 When a stream fails partway through:
 
-1. Record the error on the span immediately
-2. Set span status to ERROR
+1. Set span status to ERROR and add low-cardinality span dimensions (`error=true`, `error.type`,
+   or an `exception.slug`) for operation-level queries
+2. Emit a Logs API exception event while the streaming span is active, including
+   `event.name="exception"`, ERROR severity, and `exception.type`/`exception.message`/
+   `exception.stacktrace` (plus `exception.escaped` when applicable)
 3. Record partial usage if available
 4. End the span — don't leave it hanging
 
+The correlated log appears in Honeycomb as a `span_event` annotation with trace context, but its
+full exception fields remain on the log event rather than being hoisted onto the streaming span.
+For legacy SDKs without a usable Logs API, retain `span.add_event`/`record_exception` as a
+compatibility path.
+
 ```python
 # Python: mid-stream error handling
+import logging
+
 try:
     for chunk in stream:
         process_chunk(chunk)
 except Exception as e:
     span.set_status(StatusCode.ERROR, str(e))
+    span.set_attribute("error", True)
     span.set_attribute("error.type", type(e).__name__)
-    span.add_event("stream.error", {
-        "stream.chunks_received": chunk_count,
-        "stream.partial": True,
-    })
+    logging.getLogger("genai").error(
+        "exception",
+        exc_info=True,
+        extra={
+            "event.name": "exception",
+            "exception.escaped": True,
+            "stream.chunks_received": chunk_count,
+            "stream.partial": True,
+        },
+    )
     raise
 ```
 

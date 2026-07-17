@@ -63,6 +63,10 @@ app.post("/checkout", (req, res) => {
 
 Create spans around operations you want to see in the trace waterfall.
 
+> The `RecordError`/`record_exception` calls in the compatibility snippets below show the
+> legacy span-event exception API. For new code, prefer the **Exception Events with the Logs API**
+> pattern below; retain the legacy call only when required by an existing SDK, query, or migration.
+
 ### Go
 ```go
 func processPayment(ctx context.Context, order *Order) error {
@@ -106,9 +110,92 @@ def process_payment(order):
             raise
 ```
 
+## Pattern: Exception Events with the Logs API
+
+For new exception instrumentation, emit a Logs API record while the relevant span is active.
+Use the standard `exception.*` fields, ERROR severity, and `event.name="exception"`. Set span
+status and low-cardinality span dimensions separately so humans can aggregate operation failures
+without copying stack traces onto spans.
+
+```text
+log event (while span is active):
+  event.name = "exception"
+  body = "exception"
+  severity = ERROR
+  exception.type, exception.message, exception.stacktrace, exception.escaped
+
+containing span:
+  status = ERROR
+  error = true
+  exception.slug = "err-payment-provider-timeout"  # static, optional, low-cardinality
+```
+
+Honeycomb correlates the log to the active trace and renders it as a `span_event` annotation.
+The event row carries `trace.trace_id` and `trace.parent_id`, but Logs API exception fields are
+not hoisted onto the containing span. Query the event row for the diagnostic payload, then use
+its `trace.trace_id` with `get_trace(show_events=true)` to inspect the surrounding trace.
+
+The legacy `record_exception` / `RecordError` APIs remain useful for compatibility and existing
+instrumentation. Do not assume their `name=exception` shape applies to Logs API events: Logs API
+uses `event.name=exception` (and often `body=exception`) with `meta.signal_type=log`.
+
+**SDK implementation note:** use the language's supported Logs API or logging bridge, and verify
+that the record carries the active context. Python's current app-facing path is the stdlib
+`logging` bridge; Go passes the active context explicitly to `logger.Emit(ctx, record)`; Node
+requires an installed context manager and an explicit active context; Java attaches context from
+`span.makeCurrent()`. Do not emit the exception after the span scope closes.
+
+### Optional compatibility pattern: exception-promoting LogRecordProcessor
+
+Honeycomb's historical span-event path can promote exception fields onto the parent span. A
+trace-correlated Logs API exception does not receive that promotion automatically. If an existing
+span-oriented query surface must be preserved, implement a custom **LogRecordProcessor**, registered
+before the batch/export processor:
+
+```text
+on_emit(log_record, resolved_context):
+    if log_record.event_name != "exception":
+        return
+
+    span = span_from_context(resolved_context)
+    if span is absent or not recording:
+        return
+
+    # Promote only fields needed by span-level queries.
+    span.set_attribute("error", true)
+    span.set_attribute("error.type", log_record["exception.type"])
+    span.set_attribute("exception.type", log_record["exception.type"])
+    if log_record has "exception.slug":
+        span.set_attribute("exception.slug", log_record["exception.slug"])
+    if configured for legacy compatibility:
+        span.set_attribute("exception.message", log_record["exception.message"])
+        span.set_attribute("exception.stacktrace", log_record["exception.stacktrace"])
+
+    # Leave the log record unchanged; it remains the diagnostic source of truth.
+```
+
+The processor should be synchronous and must run while the span is still mutable. It should no-op
+when there is no valid recording span, preserve the original log record, and never invent fields
+that were not emitted. Treat `exception.message` and especially `exception.stacktrace` promotion
+as an explicit compatibility option because they are high-cardinality and potentially large.
+
+This is not a standalone `SpanProcessor`: span processors do not receive log records. A span
+processor could only participate through a separate shared registry, which adds races, cleanup,
+and lifecycle complexity. The exact processor and context APIs are language-specific:
+
+- Go: use the explicit context passed to `logger.Emit(ctx, record)`.
+- Java: use the resolved log context; do not reconstruct context after async queueing.
+- Node.js: ensure the context manager is installed and use the record's explicit context.
+- Python: preserve the active context through the stdlib logging bridge and Logs SDK processor.
+
+Use this only as a migration aid. Agents should still query Logs API exception rows for full
+`exception.*` diagnostics and treat promoted span fields as instrumentation-dependent.
+
 ## Pattern: Recording Events Within a Span
 
-For things that happen at a point in time within a span, use span events:
+For non-exception milestones and state changes, use the Logs API for new point-in-time events
+when the language SDK supports it. Keep legacy span events where the SDK has no usable Logs API
+or compatibility requires them:
 
 ```python
 with tracer.start_as_current_span("process-order") as span:
@@ -230,7 +317,10 @@ app.post("/api/resource", async (req, res) => {
 ## Pattern: Exception Slugs
 
 Tag each error throw site with a unique static string (`exception.slug`). This creates
-a low-cardinality, greppable identifier that connects dashboards directly to code.
+a low-cardinality, greppable identifier that connects dashboards directly to code. Keep this
+attribute on the operation span even when full exception details are emitted as a Logs API event.
+The legacy `RecordError`/`record_exception` calls shown in this section are compatibility examples;
+they are not a requirement for new Logs API instrumentation.
 
 ### Go
 ```go

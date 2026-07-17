@@ -97,6 +97,20 @@ These additions apply on top of the skill workflows:
   find existing relevant boards first.
 - **Always start with `get_workspace_context`** — understand the landscape before
   investigating.
+- **Discover before assuming fields** — call `get_environment` and `get_dataset_columns` (or
+  `find_columns`) before using `event.name`, `meta.signal_type`, `meta.annotation_type`,
+  `trace.parent_id`, or other Honeycomb/OTel fields.
+- **Exception event workflow** — for Logs API exceptions, query event rows with
+  `event.name=exception`, `exception.type exists`, and `trace.trace_id exists`; run a separate
+  `include_samples=true` query to obtain a representative trace ID, then call `get_trace` with
+  `show_events=true`. Use `get_trace` for placement and the query sample for full exception fields.
+  Do not assume Logs API `exception.*` fields are hoisted onto the containing span. Check the
+  legacy `name=exception`/`meta.signal_type=trace` shape separately when needed.
+- **Treat parent-span promotion as optional** — a service may register a custom
+  `LogRecordProcessor` that copies selected exception fields onto the active span for legacy query
+  compatibility. Do not assume it exists; query the event row for full diagnostics and use span
+  fields only as an explicitly verified aggregation surface. Do not recommend a standalone
+  `SpanProcessor` as the log-to-span bridge.
 - **Check for prior work** — call `find_queries` before writing new queries.
 
 ## Output Format

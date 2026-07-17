@@ -74,17 +74,43 @@ form and `run_query` parameter format.
 }
 ```
 
-### Exception breakdown
+### Exception event breakdown (Logs API)
+
+For new OTel Logs API exception events, query the event row rather than assuming the containing
+span has `exception.*`. First discover the actual dataset columns with `get_dataset_columns` or
+`find_columns`; then use only fields present in that schema.
+
+Human-readable shape:
+
+```text
+COUNT
+WHERE event.name = "exception"
+  AND exception.type exists
+  AND trace.trace_id exists
+GROUP BY service.name, exception.type
+```
+
+MCP `run_query` shape (add `meta.signal_type = log` when that discovered column exists):
+
 ```json
 {
   "calculations": [{ "op": "COUNT" }],
-  "filters": [{ "column": "exception.message", "op": "exists" }],
-  "breakdowns": ["exception.message"],
+  "filters": [
+    { "column": "event.name", "op": "=", "value": "exception" },
+    { "column": "exception.type", "op": "exists" },
+    { "column": "trace.trace_id", "op": "exists" }
+  ],
+  "breakdowns": ["service.name", "exception.type"],
   "orders": [{ "op": "COUNT", "order": "descending" }],
   "limit": 20,
   "time_range": "2h"
 }
 ```
+
+Run a second query with `include_samples=true` to obtain `trace.trace_id`, `trace.parent_id`,
+`exception.message`, and `exception.stacktrace`; then call `get_trace` for a representative trace.
+For legacy span-event exceptions, use `name = "exception"` and `meta.signal_type = "trace"`.
+Do not use `name = "exception"` as the only exception query.
 
 ### Error rate with total traffic context
 ```json

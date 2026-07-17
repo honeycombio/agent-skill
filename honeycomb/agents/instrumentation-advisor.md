@@ -124,6 +124,10 @@ during an incident? (See **observability-fundamentals** skill for why this matte
 - **Use auto-instrumentation libraries** where available (HTTP, DB, gRPC)
 - **Follow OTel semantic conventions** for standard attributes (`http.method`, `db.system`)
 - **Propagate context** — always pass `ctx`/`context` through instrumented calls
+- **Use Logs API exception events for new diagnostic details** while the relevant span is active;
+  set `event.name="exception"`, ERROR severity, and standard `exception.*` fields. Set span status
+  and low-cardinality `error`/`exception.slug` dimensions separately for aggregation. Logs API
+  exception fields remain on the event row, so query the event and follow its `trace.trace_id`.
 - **Use `exception.slug`** for error throw sites — see the Exception Slugs pattern in
   `${CLAUDE_PLUGIN_ROOT}/skills/otel-instrumentation/references/custom-instrumentation.md`
 - **Prefer timing attributes on parent spans over child spans** for sub-operations —

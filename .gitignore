@@ -41,3 +41,6 @@ tests/scenarios/output/
 
 # Skill eval/iteration workspace
 honeycomb/skills-workspace/
+
+# Local experiment harnesses (never committed)
+experiments/

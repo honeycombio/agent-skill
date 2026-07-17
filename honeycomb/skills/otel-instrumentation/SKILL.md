@@ -44,9 +44,10 @@ OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://api.honeycomb.io/v1/traces
 OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=https://api.honeycomb.io/v1/metrics
 ```
 
-**For metrics (required if sending metrics):**
+**For metrics (preferred):** Use modern OTLP metrics and native datapoints. Use dataset
+hints to confirm the destination type (`metrics` or `events`). Authenticate with:
 ```bash
-OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_DATASET"
+OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY"
 ```
 
 ### Protocol Selection
@@ -74,10 +75,10 @@ authenticate. Without it, Honeycomb silently rejects requests — no error, no d
 `OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"` or pass headers
 programmatically. If loading the key from `.env`, ensure dotenv runs before SDK init.
 
-**Metrics dataset header:** Honeycomb requires `x-honeycomb-dataset` on the metrics OTLP
-endpoint to route metrics correctly. Without it, metrics are silently dropped. Traces do
-not need this header (they route by `service.name`). Set via
-`OTEL_EXPORTER_OTLP_METRICS_HEADERS="x-honeycomb-team=YOUR_API_KEY,x-honeycomb-dataset=YOUR_DATASET"`.
+**Metrics:** Prefer modern OTLP metrics and native datapoints. Dataset hints identify the
+destination type (`metrics` or `events`), so do not add `x-honeycomb-dataset` by default.
+Use that header only when hints or configuration require legacy routing to a named event
+dataset. Traces do not need it; they route by `service.name`.
 
 For the env var values, language-specific dependencies, and setup code (Go, Python,
 Node.js, Java, Ruby, .NET, Rust), see

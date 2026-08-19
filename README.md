@@ -105,5 +105,11 @@ Structural tests validate plugin layout, frontmatter, and hook behavior — no A
 
 ## Versioning
 
-This plugin uses semantic versioning. Tags follow the format `v{major}.{minor}.{patch}`.
-Marketplace users can pin to a specific version via git ref.
+The Claude Code plugin uses semantic versioning. Its version in
+`honeycomb/.claude-plugin/plugin.json` is the single source of truth for update
+detection. Every pull request that changes files under `honeycomb/` must bump
+that version so existing installations receive the changes.
+
+The repository-level marketplace version in `.claude-plugin/marketplace.json`
+matches the plugin version. The marketplace plugin entry intentionally omits a
+second version field because Claude Code gives the plugin manifest precedence.

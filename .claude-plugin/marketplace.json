@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "honeycomb-plugins",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Honeycomb observability plugins for Claude Code",
   "owner": {
     "name": "Honeycomb",
@@ -12,7 +12,6 @@
       "name": "honeycomb",
       "source": "./honeycomb",
       "description": "Skills, agents, and workflows for Honeycomb observability",
-      "version": "1.1.0",
       "author": { "name": "Honeycomb" }
     }
   ]

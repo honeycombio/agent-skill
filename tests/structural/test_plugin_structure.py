@@ -134,20 +134,26 @@ def test_marketplace_plugin_source_exists(marketplace_json_path):
 
 
 def test_marketplace_version_matches_plugin_json(marketplace_json_path, plugin_json_path):
-    """Plugin version in marketplace.json matches plugin.json (single source of truth)."""
+    """The marketplace release version matches the plugin manifest version."""
     marketplace = json.loads(marketplace_json_path.read_text())
     plugin = json.loads(plugin_json_path.read_text())
-    for entry in marketplace["plugins"]:
-        if entry["name"] == plugin["name"]:
-            assert entry["version"] == plugin["version"], (
-                f"Version mismatch: marketplace.json has {entry['version']}, "
-                f"plugin.json has {plugin['version']}"
-            )
-            break
-    else:
-        pytest.fail(
-            f"Plugin '{plugin['name']}' not found in marketplace.json plugins list"
-        )
+    assert marketplace["version"] == plugin["version"], (
+        f"Version mismatch: marketplace.json has {marketplace['version']}, "
+        f"plugin.json has {plugin['version']}"
+    )
+
+
+def test_marketplace_plugin_entry_omits_version(marketplace_json_path, plugin_json_path):
+    """The plugin manifest is the only source of truth for the plugin version."""
+    marketplace = json.loads(marketplace_json_path.read_text())
+    plugin = json.loads(plugin_json_path.read_text())
+    entry = next(
+        item for item in marketplace["plugins"] if item["name"] == plugin["name"]
+    )
+    assert "version" not in entry, (
+        "Do not duplicate the plugin version in marketplace.json; plugin.json wins "
+        "silently and a stale value can mask releases."
+    )
 
 
 def test_codeowners_exists(codeowners_path):

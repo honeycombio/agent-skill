@@ -3,10 +3,12 @@ name: Structural Tests
 on:
   push:
     paths:
+      - ".claude-plugin/**"
       - "honeycomb/**"
       - "tests/**"
   pull_request:
     paths:
+      - ".claude-plugin/**"
       - "honeycomb/**"
       - "tests/**"
 
@@ -17,6 +19,46 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require a plugin version bump
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git diff --quiet "$BASE_SHA" HEAD -- honeycomb/; then
+            exit 0
+          fi
+
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          manifest = "honeycomb/.claude-plugin/plugin.json"
+          base_sha = os.environ["BASE_SHA"]
+          base_data = json.loads(
+              subprocess.check_output(
+                  ["git", "show", f"{base_sha}:{manifest}"], text=True
+              )
+          )
+          current_data = json.loads(open(manifest).read())
+
+          def semver(value):
+              try:
+                  return tuple(int(part) for part in value.split("."))
+              except ValueError as error:
+                  raise SystemExit(f"Plugin version is not numeric SemVer: {value}") from error
+
+          base_version = base_data["version"]
+          current_version = current_data["version"]
+          if len(semver(current_version)) != 3 or semver(current_version) <= semver(base_version):
+              raise SystemExit(
+                  "Changes under honeycomb/ require a higher plugin version: "
+                  f"base={base_version}, current={current_version}"
+              )
+          PY
 
       - uses: actions/setup-python@v6
         with:

@@ -1,18 +1,12 @@
 ---
 name: metrics-queries
 description: >
-  How to query OpenTelemetry metrics datasets in Honeycomb correctly. Metrics
-  datasets follow different rules from trace/event datasets — many operations
-  (bare COUNT, RATE_SUM, RATE_AVG, RATE_MAX, CONCURRENCY) are forbidden,
-  temporal aggregation is automatic, and each metric has its own attributes.
-  Use this skill when querying a metrics dataset (gauges, counters, histograms,
-  sums), asking about temporal aggregation (RATE, INCREASE, SUMMARIZE, LAST),
-  finding the metrics dataset or discovering metric names and attributes,
-  debugging unexpected metrics query results, or querying infrastructure
-  metrics like CPU, memory, disk I/O, or network stats. Do NOT use for
-  instrumenting metrics (use otel-instrumentation), querying event datasets
-  with "metrics" in their name, or conceptual questions (use
-  observability-fundamentals).
+  Querying OpenTelemetry metrics datasets in Honeycomb, which follow different rules from
+  trace/event datasets: bare COUNT, RATE_SUM, RATE_AVG, RATE_MAX and CONCURRENCY are
+  forbidden, temporal aggregation is automatic, and each metric has its own attributes.
+  Trigger phrases: gauges, counters, histograms, sums, RATE, INCREASE, SUMMARIZE, LAST, and
+  infrastructure metrics (CPU, memory, disk, network). For instrumenting metrics use otel-
+  instrumentation; for event datasets use query-patterns.
 metadata:
   version: "1.0.0"
 ---

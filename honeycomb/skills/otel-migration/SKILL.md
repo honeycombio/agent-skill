@@ -1,21 +1,11 @@
 ---
 name: otel-migration
 description: >
-  Guide for retrofitting OpenTelemetry into an existing, uninstrumented application.
-  Trigger phrases: "migrate existing app to OTel",
-  "add OpenTelemetry to existing project", "retrofit OTel into my codebase",
-  "thread context through my code", "context propagation",
-  "bridge Prometheus metrics to OTel", "logging bridge",
-  "migrate logging to OTel", "slog bridge", "logback bridge",
-  "verify my instrumentation", "traces are disconnected",
-  "orphaned spans", "migrate to OpenTelemetry", "OTel migration plan",
-  "how do I sequence an OTel migration", "add tracing to existing code",
-  "refactor for context propagation", "Fiber context gotcha",
-  "keep existing logging working with OTel", "add OTel without breaking Prometheus",
-  "bridge existing metrics", "coexist with existing monitoring",
-  or any request about retrofitting OpenTelemetry into an existing application.
-  This skill is for migrating existing codebases, NOT greenfield instrumentation (use otel-instrumentation)
-  or Beeline-specific migration (use beeline-migration).
+  Retrofitting OpenTelemetry into an existing, uninstrumented application: sequencing the
+  migration, threading context through existing code, and bridging existing Prometheus metrics
+  and logging (slog, logback) to OTel. Trigger phrases: "migrate to OpenTelemetry", "retrofit
+  OTel", "context propagation", "logging bridge", "traces are disconnected", "orphaned spans".
+  For greenfield instrumentation use otel-instrumentation; for Beelines use beeline-migration.
 metadata:
   version: "1.0.0"
 ---

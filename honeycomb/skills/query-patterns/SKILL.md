@@ -1,17 +1,12 @@
 ---
 name: query-patterns
 description: >
-  Opinionated guidance for constructing and interpreting Honeycomb queries on
-  trace and event datasets — operation selection (percentiles not AVG, HEATMAP
-  for distributions), relational field patterns (root., parent., any., none.),
-  calculated fields, query math, and result interpretation (P99/P50 ratios,
-  heatmap bands, TOTAL/OTHER rows, raw JSON via query_result_json). Use this
-  skill when the user wants to query spans, traces, or log/event data in
-  Honeycomb — requests like "show me latency", "error rate", "find slow
-  requests", "find outliers", "interpret results", "relational fields",
-  "calculated fields", or "download raw results". This skill covers all
-  dataset types except metrics datasets (dataset_type=metrics) — for those,
-  use metrics-queries instead.
+  Constructing and interpreting Honeycomb queries on trace and event datasets: operation
+  selection (percentiles not AVG, HEATMAP for distributions), relational fields (root.,
+  parent., any., none.), calculated fields, query math, and reading results (P99/P50 ratios,
+  heatmap bands, TOTAL/OTHER rows, query_result_json). Trigger phrases: "show me latency",
+  "error rate", "find slow requests", "find outliers", "relational fields", "calculated
+  fields". For metrics datasets use metrics-queries.
 metadata:
   version: "1.1.0"
 ---

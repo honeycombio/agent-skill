@@ -1,18 +1,11 @@
 ---
 name: slos-and-triggers
 description: >
-  Decision heuristics for interpreting Honeycomb SLO compliance, budget burn rates,
-  and trigger status — what the numbers mean and what action to take, including
-  detecting misconfigured SLIs, deciding when to freeze deploys vs page on-call,
-  and designing burn alert thresholds. Load this skill before calling get_slos or
-  get_triggers.
-  Trigger phrases: "check our SLOs", "are we meeting our SLOs", "which SLOs are
-  healthy", "is the error budget OK", "are any alerts firing", "what's the burn rate",
-  "set up an SLO", "create a trigger", "configure alerts", "set up burn alerts",
-  "check trigger status", "starting on-call", "reliability picture",
-  "should we freeze deploys", "is this SLO misconfigured", "are we within budget",
-  "SLO is broken", "budget is negative", or any request about service level
-  objectives, error budgets, burn rates, or alerting in Honeycomb.
+  Interpreting Honeycomb SLO compliance, error budgets, burn rates and trigger status - what
+  the numbers mean and what to do: spotting misconfigured SLIs, freezing deploys vs paging on-
+  call, designing burn alert thresholds. Load before calling get_slos or get_triggers. Trigger
+  phrases: "check our SLOs", "error budget", "burn rate", "are any alerts firing", "create a
+  trigger", "starting on-call", "should we freeze deploys".
 metadata:
   version: "1.0.0"
 ---

@@ -1,16 +1,11 @@
 ---
 name: otel-genai-instrumentation
 description: >
-  Guides instrumentation of GenAI/LLM applications with OpenTelemetry
-  for Honeycomb, including content capture and agent failure detection.
-  Trigger phrases: "instrument my GenAI app", "add tracing to LLM calls",
-  "trace AI agent", "instrument OpenAI", "instrument Anthropic",
-  "GenAI observability", "trace tool calling", "LLM token usage",
-  "instrument embeddings", "trace MCP", "GenAI metrics",
-  "instrument LangChain", "add GenAI spans", "capture prompts",
-  "capture LLM responses", "enable GenAI content capture",
-  "streaming tracing", "trace streaming responses",
-  or any request about instrumenting GenAI/LLM applications.
+  Instrumenting GenAI/LLM applications with OpenTelemetry for Honeycomb, including content
+  capture and agent failure detection. Trigger phrases: "instrument my GenAI app", "add
+  tracing to LLM calls", "trace AI agent", "instrument OpenAI", "instrument Anthropic",
+  "instrument LangChain", "LLM token usage", "capture prompts", "trace tool calling", "trace
+  MCP", "streaming tracing".
 metadata:
   version: "1.0.0"
   semconv_version: "v1.40.0"

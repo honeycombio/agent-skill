@@ -1,16 +1,11 @@
 ---
 name: otel-instrumentation
 description: >
-  Provides guidance on OpenTelemetry SDK setup, custom instrumentation,
-  and sending data to Honeycomb.
-  Trigger phrases: "instrument my app", "add tracing",
-  "set up OpenTelemetry", "configure OTel", "add custom spans",
-  "add attributes to spans", "send traces to Honeycomb",
-  "set up OTLP", "configure sampling", "add span events",
-  "add span links", "set up tracing for [any language]",
-  "configure the OTel Collector",
-  or any request about OpenTelemetry SDK setup, custom instrumentation,
-  or sending data to Honeycomb.
+  OpenTelemetry SDK setup, custom instrumentation, and sending data to Honeycomb. Trigger
+  phrases: "instrument my app", "add tracing", "set up OpenTelemetry", "configure OTel", "add
+  custom spans", "add attributes to spans", "send traces to Honeycomb", "set up OTLP",
+  "configure sampling", "span events", "span links", "configure the OTel Collector". For
+  retrofitting an existing app use otel-migration.
 metadata:
   version: "1.0.0"
 ---

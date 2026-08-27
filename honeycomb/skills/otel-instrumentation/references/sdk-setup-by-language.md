@@ -199,15 +199,69 @@ builder.Services.AddOpenTelemetry()
 ### Dependencies (Cargo.toml)
 ```toml
 [dependencies]
-opentelemetry = "0.21"
-opentelemetry-otlp = { version = "0.14", features = ["http-proto"] }
-opentelemetry_sdk = { version = "0.21", features = ["rt-tokio"] }
+opentelemetry = "0.32"
+# reqwest-rustls is not optional — without it there's no TLS backend, and exports
+# to https:// endpoints (like Honeycomb) fail silently. See Notes below.
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-rustls"] }
+opentelemetry_sdk = "0.32"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-opentelemetry = "0.33"
+```
+Verify current versions with `cargo add` — this crate family moves fast and pins go stale.
+
+### Setup
+```rust
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
+
+fn init_telemetry(service_name: &str) -> Option<SdkTracerProvider> {
+    let provider = opentelemetry_otlp::SpanExporter::builder()
+        .with_http() // reads OTEL_EXPORTER_OTLP_ENDPOINT / _HEADERS / _PROTOCOL from env
+        .build()
+        .ok()
+        .map(|exporter| {
+            let resource = Resource::builder().with_service_name(service_name.to_string()).build();
+            SdkTracerProvider::builder().with_batch_exporter(exporter).with_resource(resource).build()
+        });
+
+    let otel_layer = provider.as_ref().map(|p| tracing_opentelemetry::layer().with_tracer(p.tracer(service_name.to_string())));
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with(otel_layer)
+        // Don't skip this: batch-exporter failures (TLS, network, auth) log via
+        // tracing::error!, and with no fmt layer they vanish with no trace at all.
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .init();
+
+    provider
+}
+// Flush before exit: if let Some(p) = provider { let _ = p.shutdown(); }
 ```
 
 ### Notes
-- Rust uses OTLP exporter directly
-- No auto-instrumentation; all spans are manual
-- Use `tracing` crate with `tracing-opentelemetry` for ergonomic instrumentation
+- Rust uses OTLP exporter directly; no auto-instrumentation, all spans are manual
+- Prefer the `tracing` crate with `tracing-opentelemetry` for ergonomic instrumentation
+  (`#[tracing::instrument]`, `tracing::info_span!`) over calling `opentelemetry::trace::Tracer` directly
+- **Tokio apps:** the plain `with_batch_exporter()` runs its export loop on a dedicated
+  OS thread, not a tokio task. Pairing it with the exporter's default async-reqwest client
+  panics at runtime ("no reactor running") because that thread has no tokio reactor. Use
+  the `reqwest-blocking-client` feature shown above, or if you need to stay on async
+  reqwest, use `opentelemetry_sdk`'s `rt-tokio` feature with
+  `span_processor_with_async_runtime::BatchSpanProcessor` instead.
+- **Silent export failures:** the SDK reports export errors (TLS, network, auth) via
+  `tracing::error!`, not panics. With no `fmt` (or other output) layer in the subscriber,
+  those errors vanish and the process exits 0 having sent nothing. Keep a `fmt` layer
+  wired up, at least during setup.
+- The local collector setup below runs over plain `http://`, so it proves span
+  structure/wiring but not that TLS export to a real `https://` endpoint works — do one
+  live check against Honeycomb (or an `https://` collector) before calling it done.
+- Verify locally with the collector setup below before pointing at Honeycomb.
 
 ## Testing Locally Without Honeycomb
 

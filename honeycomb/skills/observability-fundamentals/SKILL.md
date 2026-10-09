@@ -1,16 +1,11 @@
 ---
 name: observability-fundamentals
 description: >
-  First principles behind observability — wide events, high cardinality, the core
-  analysis loop, events vs metrics vs logs, and how instrumentation connects to
-  debugging outcomes. Grounds recommendations in first principles rather than
-  tool-specific how-to.
-  Trigger phrases: "what is observability", "why observability", "why Honeycomb",
-  "events vs metrics vs logs", "events vs metrics", "events vs logs",
-  "metrics vs logs", "why wide events", "what is high cardinality",
-  "core analysis loop", "observability vs monitoring", "what is dimensionality",
-  "explain observability", or any conceptual question about observability
-  or why Honeycomb's approach differs from traditional monitoring.
+  First principles of observability: wide events, high cardinality, the core analysis loop,
+  events vs metrics vs logs, and how instrumentation connects to debugging. Trigger phrases:
+  "what is observability", "why observability", "why Honeycomb", "events vs metrics vs
+  logs", "why wide events", "what is high cardinality", "core analysis loop", "observability
+  vs monitoring", "what is dimensionality", "explain observability".
 metadata:
   version: "1.0.0"
 ---

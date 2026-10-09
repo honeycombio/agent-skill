@@ -1,12 +1,10 @@
 ---
 name: create-honeycomb-board
 description: >
-  Design and then create a board (dashboard) in Honeycomb with queries and SLOs.
-  Trigger phrases: "create a board", "make a board", "build a dashboard",
-  "create a Honeycomb board", "make a dashboard in Honeycomb",
-  "set up a board", "dashboard for my service", "visualize service health",
-  "golden signals dashboard", "set up monitoring board",
-  or any request to design and create or build a Honeycomb board or dashboard.
+  Design and create a Honeycomb board (dashboard) with queries and SLOs. Trigger phrases:
+  "make a board", "build a dashboard", "create a Honeycomb board", "make a dashboard in
+  Honeycomb", "set up a board", "dashboard for my service", "visualize service health",
+  "golden signals dashboard", "set up monitoring board".
 metadata:
   version: "1.0.0"
 allowed-tools:

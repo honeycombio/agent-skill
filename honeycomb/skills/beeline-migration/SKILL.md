@@ -1,15 +1,11 @@
 ---
 name: beeline-migration
 description: >
-  Step-by-step guide for migrating from Honeycomb Beelines (End of Life) to
-  OpenTelemetry instrumentation.
-  Trigger phrases: "migrate from Beelines",
-  "upgrade from Beeline to OpenTelemetry", "migrate to OTel", "replace Beelines",
-  "Beeline end of life", "Beeline EOL", "switch from Beeline to OTel",
-  "migrate Go Beeline", "migrate Python Beeline", "migrate Node Beeline",
-  "migrate Java Beeline", "migrate Ruby Beeline", "W3C trace headers",
-  "W3C propagation", "incremental migration to OpenTelemetry",
-  or any request about migrating from Honeycomb Beelines to OpenTelemetry SDKs.
+  Migrating from Honeycomb Beelines (End of Life) to OpenTelemetry. Trigger phrases:
+  "migrate from Beelines", "upgrade from Beeline to OpenTelemetry", "migrate to OTel",
+  "replace Beelines", "Beeline end of life", "Beeline EOL", "switch from Beeline to OTel",
+  "migrate Go/Python/Node/Java/Ruby Beeline", "W3C trace headers", "W3C propagation",
+  "incremental migration to OpenTelemetry".
 metadata:
   version: "1.0.0"
 ---

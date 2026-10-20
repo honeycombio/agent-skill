@@ -15,4 +15,5 @@ REQUIRED_SKILLS = [
     "create-honeycomb-board",
     "otel-genai-instrumentation",
     "metrics-queries",
+    "reduce-log-volume",
 ]

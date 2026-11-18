@@ -7,6 +7,7 @@ on:
       - "honeycomb/**"
       - "tests/**"
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     paths:
       - ".claude-plugin/**"
       - "honeycomb/**"
@@ -23,7 +24,9 @@ jobs:
           fetch-depth: 0
 
       - name: Require a plugin version bump
-        if: github.event_name == 'pull_request'
+        if: >-
+          github.event_name == 'pull_request' &&
+          !contains(github.event.pull_request.labels.*.name, 'skip-plugin-version-bump')
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |

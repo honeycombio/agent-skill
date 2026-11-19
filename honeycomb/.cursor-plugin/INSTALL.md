@@ -19,7 +19,7 @@ GitHub import is available on Teams and Enterprise plans via Team Marketplaces:
 
 1. Open the Cursor dashboard → **Settings > Plugins**.
 2. Under **Team Marketplaces**, import from the repository URL:
-   `https://github.com/honeycombio/agent-skill`
+   `https://github.com/honeycombio/agent-skills`
 3. Add the `honeycomb` plugin to your marketplace and grant team access.
 
 ## Manual / local install (development)
@@ -30,19 +30,19 @@ folder by symlinking (recommended, so `git pull` keeps it current) or copying.
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/honeycombio/agent-skill.git
+git clone https://github.com/honeycombio/agent-skills.git
 mkdir -p ~/.cursor/plugins/local
-ln -s "$(pwd)/agent-skill/honeycomb" ~/.cursor/plugins/local/honeycomb
+ln -s "$(pwd)/agent-skills/honeycomb" ~/.cursor/plugins/local/honeycomb
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/honeycombio/agent-skill.git
+git clone https://github.com/honeycombio/agent-skills.git
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.cursor\plugins\local" | Out-Null
 New-Item -ItemType SymbolicLink `
   -Path "$env:USERPROFILE\.cursor\plugins\local\honeycomb" `
-  -Target "$(Resolve-Path .\agent-skill\honeycomb)"
+  -Target "$(Resolve-Path .\agent-skills\honeycomb)"
 ```
 
 Then **restart Cursor**, or run **Developer: Reload Window** from the command
@@ -62,7 +62,7 @@ confirm the skills loaded.
 ## Update
 
 ```bash
-cd agent-skill && git pull
+cd agent-skills && git pull
 ```
 
 Reload the window afterward. (If you copied the directory instead of symlinking,

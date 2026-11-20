@@ -13,11 +13,11 @@ Honeycomb observability skills for AI coding agents. Adds query patterns, produc
 **Full Plugin Install:**
 | Tool | Install |
 |------|---------|
-| Claude Code | `claude plugin marketplace add honeycombio/agent-skill` then `claude plugin install honeycomb` |
-| OpenAI Codex | `codex plugin marketplace add honeycombio/agent-skill` then install Honeycomb from the plugin directory |
+| Claude Code | `claude plugin marketplace add honeycombio/agent-skills` then `claude plugin install honeycomb` |
+| OpenAI Codex | `codex plugin marketplace add honeycombio/agent-skills` then install Honeycomb from the plugin directory |
 | Cursor | [Install from cursor.directory](https://cursor.directory/plugins/honeycomb) — or Team Marketplace import ([setup](#cursor)) |
-| Augment (Auggie CLI) | `auggie plugin marketplace add honeycombio/agent-skill` then `auggie plugin install honeycomb` |
-| GitHub Copilot CLI | `copilot plugin install honeycombio/agent-skill:honeycomb` |
+| Augment (Auggie CLI) | `auggie plugin marketplace add honeycombio/agent-skills` then `auggie plugin install honeycomb` |
+| GitHub Copilot CLI | `copilot plugin install honeycombio/agent-skills:honeycomb` |
 
 **Skills + MCP (manual setup):**
 | Tool | Skills Directory | MCP Config |
@@ -38,7 +38,7 @@ For detailed setup instructions for each tool, see [Honeycomb Docs: Agent Skills
 #### Marketplace (preferred)
 
 ```bash
-claude plugin marketplace add honeycombio/agent-skill
+claude plugin marketplace add honeycombio/agent-skills
 claude plugin install honeycomb
 ```
 
@@ -65,7 +65,7 @@ is shown for review before it's passed to Cursor — confirm it, then reload.
 
 On Teams/Enterprise plans you can import this repo as a private **Team
 Marketplace**: Cursor dashboard → **Settings > Plugins > Team Marketplaces >
-Import**, then paste `https://github.com/honeycombio/agent-skill` and grant team
+Import**, then paste `https://github.com/honeycombio/agent-skills` and grant team
 access. See [Cursor: Plugins](https://cursor.com/docs/plugins) for team
 marketplace setup.
 
@@ -75,7 +75,7 @@ For a manual / local install (e.g. plugin development), see
 ### OpenAI Codex
 
 ```bash
-codex plugin marketplace add honeycombio/agent-skill
+codex plugin marketplace add honeycombio/agent-skills
 ```
 
 After adding the marketplace, restart Codex, open the plugin directory, select **Honeycomb Plugins**, and install Honeycomb.
@@ -83,14 +83,14 @@ After adding the marketplace, restart Codex, open the plugin directory, select *
 ### Augment (Auggie CLI)
 
 ```bash
-auggie plugin marketplace add honeycombio/agent-skill
+auggie plugin marketplace add honeycombio/agent-skills
 auggie plugin install honeycomb
 ```
 
 ### GitHub Copilot CLI
 
 ```bash
-copilot plugin install honeycombio/agent-skill:honeycomb
+copilot plugin install honeycombio/agent-skills:honeycomb
 ```
 
 ## Tests

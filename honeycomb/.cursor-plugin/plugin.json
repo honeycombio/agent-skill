@@ -8,7 +8,7 @@
   },
   "publisher": "Honeycomb",
   "homepage": "https://docs.honeycomb.io/integrations/mcp/",
-  "repository": "https://github.com/honeycombio/agent-skill",
+  "repository": "https://github.com/honeycombio/agent-skills",
   "license": "MIT",
   "logo": "assets/logo-square.png",
   "keywords": [

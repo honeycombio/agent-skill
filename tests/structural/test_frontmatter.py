@@ -47,3 +47,13 @@ def test_command_frontmatter(command_md_files):
         assert fm is not None, f"{path.name} has no YAML frontmatter"
         assert fm.get("name"), f"{path.name} frontmatter missing 'name'"
         assert fm.get("description"), f"{path.name} frontmatter missing 'description'"
+
+
+def test_skill_stability_value(skills_dir):
+    """A skill that declares metadata.stability uses a known value."""
+    allowed = {"development", "stable"}
+    for path in sorted(skills_dir.glob("*/SKILL.md")):
+        stability = (parse_frontmatter(path) or {}).get("metadata", {}).get("stability")
+        assert stability is None or stability in allowed, (
+            f"{path.parent.name} has metadata.stability {stability!r}; expected one of {sorted(allowed)}"
+        )

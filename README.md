@@ -103,6 +103,13 @@ make test
 
 Structural tests validate plugin layout, frontmatter, and hook behavior — no API keys needed.
 
+## Skill stability
+
+Each skill declares `metadata.stability` in its frontmatter:
+
+- `development`: owned and edited in this repo; contributions welcome.
+- `stable`: maintained in an internal source repository and synced here. To suggest a change to a stable skill, open an issue.
+
 ## Versioning
 
 The Claude Code plugin uses semantic versioning. Its version in

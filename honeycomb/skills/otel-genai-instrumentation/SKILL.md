@@ -10,6 +10,7 @@ description: >
   "trace streaming responses".
 metadata:
   version: "1.0.0"
+  stability: development
   semconv_version: "v1.40.0"
 ---
 

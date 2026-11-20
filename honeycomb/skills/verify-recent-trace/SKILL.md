@@ -4,6 +4,7 @@ description: >
   Find a recent trace in Honeycomb, to see what happened in a recent test. Use when asked to "verify in Honeycomb", "find the most recent trace", or "show me the trace".
 metadata:
   version: "1.0.0"
+  stability: development
 allowed-tools:
   - mcp__honeycomb__run_query
   - mcp__honeycomb__get_trace

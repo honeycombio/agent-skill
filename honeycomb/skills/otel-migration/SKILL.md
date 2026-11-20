@@ -13,6 +13,7 @@ description: >
   instrumentation use otel-instrumentation; for Beelines use beeline-migration.
 metadata:
   version: "1.0.0"
+  stability: development
 ---
 
 # OpenTelemetry Migration for Existing Applications

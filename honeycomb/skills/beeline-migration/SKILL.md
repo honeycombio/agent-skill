@@ -8,6 +8,7 @@ description: >
   "incremental migration to OpenTelemetry".
 metadata:
   version: "1.0.0"
+  stability: development
 ---
 
 # Beeline to OpenTelemetry Migration

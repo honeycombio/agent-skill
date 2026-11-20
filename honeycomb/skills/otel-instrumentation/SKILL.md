@@ -8,6 +8,7 @@ description: >
   language]", "configure the OTel Collector".
 metadata:
   version: "1.0.0"
+  stability: development
 ---
 
 # OpenTelemetry Instrumentation for Honeycomb

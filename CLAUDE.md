@@ -17,6 +17,7 @@ honeycomb/                    # Plugin root
 
 - All versions (plugin.json, marketplace.json, skill metadata) must stay in sync
 - Skill frontmatter must include `name`, `description`, and `metadata.version`
+- Skills declare `metadata.stability` (`development` or `stable`); see [Skill stability](#skill-stability)
 - All intra-plugin paths use `${CLAUDE_PLUGIN_ROOT}`, never hardcoded paths
 - Skills use `allowed-tools` (hyphenated), not `allowed_tools`
 - Hook scripts must fail open (`exit 0`) on errors
@@ -47,11 +48,21 @@ The `tests/scenarios/` and `tests/skill-pressure/` suites require a Honeycomb AP
      What this skill does. Trigger phrases: "phrase1", "phrase2", ...
    metadata:
      version: "1.0.0"
+     stability: development
    ---
    ```
 2. Add reference files in `honeycomb/skills/<skill-name>/references/`
 3. Add the skill name to `REQUIRED_SKILLS` in `tests/constants.py`
 4. Run `make test` to verify structure
+
+## Skill stability
+
+`metadata.stability` says who owns a skill and whether it is edited here.
+
+- `development`: owned and edited in this repo. Contributions are welcome. New skills start here.
+- `stable`: maintained in an internal source repository and synced here. Do not edit a stable skill in this repo; open an issue describing the change and a maintainer will make it at the source, and it will arrive here with the next sync.
+
+To promote a skill, a maintainer moves it to the internal source and marks it `stable`.
 
 ## Hook System
 
